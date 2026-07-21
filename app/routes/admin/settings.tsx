@@ -201,7 +201,8 @@ export default function SettingsPage() {
                 defaultValue={settings.stock_sync_minutes ?? "30"}
               />
               <p className="text-xs text-muted-foreground">
-                The sync job itself arrives in milestone 2; this is its cadence.
+                The sync cron fires every 15 minutes and runs a sync once this many minutes
+                have passed since the last one. "Sync now" on the Products page ignores this.
               </p>
             </div>
             <div>

@@ -11,6 +11,9 @@ export default [
   // Admin panel (requires login — enforced in layout.tsx)
   layout("routes/admin/layout.tsx", [
     route("admin", "routes/admin/dashboard.tsx"),
+    route("admin/products", "routes/admin/products/list.tsx"),
+    route("admin/products/new", "routes/admin/products/new.tsx"),
+    route("admin/products/:id", "routes/admin/products/edit.tsx"),
     route("admin/settings", "routes/admin/settings.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
   ]),

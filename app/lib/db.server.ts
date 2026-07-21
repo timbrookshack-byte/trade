@@ -21,6 +21,14 @@ export function createDb(env: Env) {
         serialize: (value: number | bigint) => String(value),
         parse: (value: string) => Number(value),
       },
+      // With fetch_types off, json/jsonb columns come back as raw strings —
+      // parse them so `incoming`/`overrides` are real objects.
+      json: {
+        to: 114,
+        from: [114, 3802],
+        serialize: (value: unknown) => JSON.stringify(value),
+        parse: (value: string) => JSON.parse(value),
+      },
     },
   });
 }

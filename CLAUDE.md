@@ -100,7 +100,8 @@ this way; the ordering API slots in later without redesign.
 - `products` — sku (unique), name, category, description, images, trade_price,
   rrp_reference, source ('shack360' | 'portal'), active, plus cached
   `available_now`, `incoming` (jsonb), `stock_synced_at`. 360-sourced rows are
-  refreshed by sync; portal rows are fully editable.
+  refreshed by sync; portal rows are fully editable. ✅ built (+ `sync_runs`
+  history table)
 - `customers` — trade accounts: business name, ABN, contacts, addresses,
   price_tier, credit_terms, login (email + password hash or magic link),
   approved (bool — new registrations need admin approval before seeing prices).
@@ -112,9 +113,13 @@ this way; the ordering API slots in later without redesign.
 - `users` — admin-panel users (the trade team), role-based (admin / staff). ✅ built
 - `settings` — key/value, mirroring 360's pattern. ✅ built
 
-## The sync job (heart of the integration) — milestone 2
+## The sync job (heart of the integration) — ✅ built (milestone 2)
 
-A Worker cron (e.g. every 30 minutes, plus a "Sync now" button in admin):
+`app/lib/sync.server.ts`. Worker cron fires every 15 min; a sync runs when
+`stock_sync_minutes` (settings, default 30) has elapsed — plus a "Sync now"
+button on the products page (bypasses the interval). Each run is recorded in
+`sync_runs`. jsonb params MUST go through `db.json(...)` (a pre-stringified
+value stores a jsonb string, not an array). The rules:
 
 1. Fetch `/api/trade/products` from 360.
 2. Upsert by SKU where `source = 'shack360'`: update name, category, images,
@@ -167,7 +172,9 @@ registration received/approved. Domain-verified sender.
 ## Build order (milestones)
 
 1. ✅ Scaffold + auth (admin users) + settings. **(done)**
-2. Sync job + products admin (this proves the 360 bridge end-to-end first).
+2. ✅ Sync job + products admin. **(done — deployed with cron trigger;
+   products list/filters/search, "New from 360" queue, edit with trade price +
+   copy overrides, portal-only products, Sync now button)**
 3. Storefront browse with trade login + pricing.
 4. Cart → order submission → admin order management + payments.
 5. Invoicing PDFs + emails.

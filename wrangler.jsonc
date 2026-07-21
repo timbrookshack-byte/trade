@@ -15,6 +15,8 @@
       "id": "REPLACE_WITH_HYPERDRIVE_ID",
       "localConnectionString": "postgresql://postgres:postgres@localhost:5432/trade_portal"
     }
-  ]
-  // Milestone 2 will add: "triggers": { "crons": ["*/30 * * * *"] } for the 360 stock sync.
+  ],
+  // 360 stock sync. Fires every 15 minutes; the handler only syncs when
+  // settings.stock_sync_minutes (default 30) has elapsed since the last run.
+  "triggers": { "crons": ["*/15 * * * *"] }
 }
