@@ -26,7 +26,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 const nav = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/customers", label: "Customers", icon: UserRound, soon: true },
+  { to: "/admin/customers", label: "Customers", icon: UserRound },
   { to: "/admin/orders", label: "Orders", icon: ShoppingCart, soon: true },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },

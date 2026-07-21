@@ -22,28 +22,40 @@ const LOW_STOCK_THRESHOLD = 5;
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
   const sql = context.db;
-  const [settings, newFrom360, lowStock, syncRuns, activeCountRow] = await Promise.all([
-    getSettings(context, ["company_name", "trade_api_token", "trade_api_url"]),
-    countNewFrom360(sql),
-    countLowStock(sql, LOW_STOCK_THRESHOLD),
-    getLastSyncRuns(sql, 1),
-    sql<{ count: number }[]>`
-      SELECT count(*) FROM products WHERE active AND discontinued_at IS NULL
-    `,
-  ]);
+  const [settings, newFrom360, lowStock, syncRuns, activeCountRow, pendingRow] =
+    await Promise.all([
+      getSettings(context, ["company_name", "trade_api_token", "trade_api_url"]),
+      countNewFrom360(sql),
+      countLowStock(sql, LOW_STOCK_THRESHOLD),
+      getLastSyncRuns(sql, 1),
+      sql<{ count: number }[]>`
+        SELECT count(*) FROM products WHERE active AND discontinued_at IS NULL
+      `,
+      sql<{ count: number }[]>`
+        SELECT count(*) FROM customers WHERE NOT approved AND active
+      `,
+    ]);
   return {
     companyName: settings.company_name ?? "",
     apiConfigured: Boolean(settings.trade_api_token && settings.trade_api_url),
     newFrom360,
     lowStock,
     activeProducts: activeCountRow[0].count,
+    pendingRegistrations: pendingRow[0].count,
     lastSync: syncRuns[0] ?? null,
   };
 }
 
 export default function Dashboard() {
-  const { companyName, apiConfigured, newFrom360, lowStock, activeProducts, lastSync } =
-    useLoaderData<typeof loader>();
+  const {
+    companyName,
+    apiConfigured,
+    newFrom360,
+    lowStock,
+    activeProducts,
+    pendingRegistrations,
+    lastSync,
+  } = useLoaderData<typeof loader>();
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,15 +120,19 @@ export default function Dashboard() {
             <CardTitle className="text-3xl">{lowStock}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Today's orders</CardDescription>
-            <CardTitle className="text-3xl text-muted-foreground">—</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Arrives with milestone 4 (orders).
-          </CardContent>
-        </Card>
+        <Link to="/admin/customers?filter=pending">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader>
+              <CardDescription>Pending registrations</CardDescription>
+              <CardTitle className="text-3xl">{pendingRegistrations}</CardTitle>
+            </CardHeader>
+            {pendingRegistrations > 0 && (
+              <CardContent className="text-xs text-muted-foreground">
+                Review and approve trade applications.
+              </CardContent>
+            )}
+          </Card>
+        </Link>
       </div>
     </div>
   );

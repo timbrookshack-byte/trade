@@ -105,6 +105,7 @@ this way; the ordering API slots in later without redesign.
 - `customers` — trade accounts: business name, ABN, contacts, addresses,
   price_tier, credit_terms, login (email + password hash or magic link),
   approved (bool — new registrations need admin approval before seeing prices).
+  ✅ built (+ business_type; separate `__tp_trade` cookie session)
 - `orders` + `order_items` — status flow: draft → submitted → confirmed →
   picking → dispatched → completed (+ cancelled). Keep `sale_number_360`
   nullable for phase 2 linkage.
@@ -175,7 +176,14 @@ registration received/approved. Domain-verified sender.
 2. ✅ Sync job + products admin. **(done — deployed with cron trigger;
    products list/filters/search, "New from 360" queue, edit with trade price +
    copy overrides, portal-only products, Sync now button)**
-3. Storefront browse with trade login + pricing.
+3. ✅ Storefront browse with trade login + pricing. **(done — public home
+   with category tiles + gallery without prices, /trade/apply ABN
+   application → admin approval queue (/admin/customers), trade login,
+   gated pricing + stock bands ("In stock"/"Low"/"Incoming — ETA")
+   with "stock as at" timestamp. IMPORTANT: unapproved visitors get
+   products through `scrubProductForPublic` — loader data is serialised
+   into HTML, so trade prices must be stripped server-side, never just
+   hidden in the UI.)**
 4. Cart → order submission → admin order management + payments.
 5. Invoicing PDFs + emails.
 6. Phase 2: 360 orders API integration (coordinate with the 360 side — the
