@@ -1,23 +1,26 @@
 @import "tailwindcss";
 
+/* Corporate palette: strong black primary with fuchsia (dark hot pink) accent. */
 @theme {
-  --color-background: oklch(0.99 0.002 90);
-  --color-foreground: oklch(0.24 0.01 60);
+  --color-background: oklch(0.99 0 0);
+  --color-foreground: oklch(0.17 0 0);
   --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.24 0.01 60);
-  --color-primary: oklch(0.38 0.05 50);
-  --color-primary-foreground: oklch(0.98 0.005 90);
-  --color-secondary: oklch(0.95 0.008 80);
-  --color-secondary-foreground: oklch(0.3 0.02 55);
-  --color-muted: oklch(0.955 0.006 85);
-  --color-muted-foreground: oklch(0.5 0.015 60);
-  --color-accent: oklch(0.93 0.015 75);
-  --color-accent-foreground: oklch(0.3 0.02 55);
+  --color-card-foreground: oklch(0.17 0 0);
+  --color-primary: oklch(0.2 0 0);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-secondary: oklch(0.95 0 0);
+  --color-secondary-foreground: oklch(0.25 0 0);
+  --color-muted: oklch(0.96 0 0);
+  --color-muted-foreground: oklch(0.48 0 0);
+  --color-accent: oklch(0.955 0.02 350);
+  --color-accent-foreground: oklch(0.25 0 0);
   --color-destructive: oklch(0.55 0.2 27);
-  --color-destructive-foreground: oklch(0.98 0.005 90);
-  --color-border: oklch(0.9 0.008 80);
-  --color-input: oklch(0.87 0.01 80);
-  --color-ring: oklch(0.55 0.05 55);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-border: oklch(0.9 0 0);
+  --color-input: oklch(0.85 0 0);
+  --color-ring: oklch(0.54 0.23 355);
+  --color-brand: oklch(0.54 0.23 355);
+  --color-brand-foreground: oklch(0.99 0 0);
   --radius: 0.5rem;
 }
 

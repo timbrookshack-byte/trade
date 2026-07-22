@@ -11,7 +11,13 @@ import {
 import { RefreshCw } from "lucide-react";
 import { requireUser } from "~/lib/auth.server";
 import { PRODUCT_FILTERS, type Product, type ProductFilter } from "~/lib/products";
-import { listProducts } from "~/lib/products.server";
+import {
+  activatePriced,
+  applyDefaultPricing,
+  listAllCategories,
+  listProducts,
+} from "~/lib/products.server";
+import { getSetting } from "~/lib/settings.server";
 import { getLastSyncRuns, runSync } from "~/lib/sync.server";
 import { cn, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -41,31 +47,57 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const filter = parseFilter(url.searchParams.get("filter"));
   const search = url.searchParams.get("q") ?? "";
-  const [products, syncRuns] = await Promise.all([
-    listProducts(context.db, filter, search),
+  const category = url.searchParams.get("category") ?? "";
+  const [products, categories, syncRuns, discountSetting] = await Promise.all([
+    listProducts(context.db, filter, search, category),
+    listAllCategories(context.db),
     getLastSyncRuns(context.db, 1),
+    getSetting(context, "trade_discount_percent"),
   ]);
-  return { products, lastSync: syncRuns[0] ?? null, filter, search };
+  return {
+    products,
+    categories,
+    lastSync: syncRuns[0] ?? null,
+    filter,
+    search,
+    category,
+    discountPercent: Number(discountSetting) || 37.5,
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
   await requireUser(context, request);
   const form = await request.formData();
-  if (form.get("intent") === "sync") {
+  const intent = form.get("intent");
+  if (intent === "sync") {
     const result = await runSync(context.db, "manual");
     return { syncResult: result };
+  }
+  if (intent === "price-defaults") {
+    const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+    const count = await applyDefaultPricing(context.db, discount);
+    return { bulkResult: `Default pricing (RRP − ${discount}%) applied to ${count} product(s).` };
+  }
+  if (intent === "activate-priced") {
+    const count = await activatePriced(context.db);
+    return { bulkResult: `${count} priced product(s) activated — now live on the storefront.` };
   }
   return null;
 }
 
 export default function ProductsList() {
-  const { products, lastSync, filter, search } = useLoaderData<typeof loader>();
+  const { products, categories, lastSync, filter, search, category, discountPercent } =
+    useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const actionData = useActionData<typeof action>();
   const syncing =
     navigation.state === "submitting" && navigation.formData?.get("intent") === "sync";
   const syncResult = navigation.state === "idle" ? actionData?.syncResult : undefined;
+  const bulkResult = navigation.state === "idle" ? actionData?.bulkResult : undefined;
+  const unpricedCount = products.filter(
+    (p: Product) => p.source === "shack360" && p.trade_price == null && p.rrp_reference != null,
+  ).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,6 +151,27 @@ export default function ProductsList() {
       {syncResult && syncResult.status === "error" && (
         <Alert variant="destructive">Sync failed: {syncResult.error}</Alert>
       )}
+      {bulkResult && <Alert variant="success">{bulkResult}</Alert>}
+
+      {(filter === "new" || filter === "inactive" || filter === "all") && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-card px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            Bulk pricing{unpricedCount > 0 && <> — {unpricedCount} shown here have no trade price</>}:
+          </p>
+          <Form method="post">
+            <input type="hidden" name="intent" value="price-defaults" />
+            <Button type="submit" variant="outline" size="sm" disabled={syncing}>
+              Price all unpriced at RRP − {discountPercent}%
+            </Button>
+          </Form>
+          <Form method="post">
+            <input type="hidden" name="intent" value="activate-priced" />
+            <Button type="submit" variant="outline" size="sm" disabled={syncing}>
+              Activate all priced products
+            </Button>
+          </Form>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {PRODUCT_FILTERS.map((f) => (
@@ -137,14 +190,26 @@ export default function ProductsList() {
         ))}
         <Form method="get" className="ml-auto flex gap-2">
           <input type="hidden" name="filter" value={searchParams.get("filter") ?? "all"} />
+          <select
+            name="category"
+            defaultValue={category}
+            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+          >
+            <option value="">All categories</option>
+            {categories.map((cat: string) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
           <Input
             name="q"
-            placeholder="Search SKU, name, category…"
+            placeholder="Search SKU or name…"
             defaultValue={search}
-            className="w-64"
+            className="w-56"
           />
           <Button type="submit" variant="secondary">
-            Search
+            Filter
           </Button>
         </Form>
       </div>

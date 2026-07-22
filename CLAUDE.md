@@ -22,7 +22,9 @@ this repo must follow this document.
   integration is API-only). Driver: `postgres` (postgres.js) with
   `nodejs_compat`.
 - Tailwind CSS v4 + shadcn-style components (hand-rolled in
-  `app/components/ui/`, same conventions as 360).
+  `app/components/ui/`, same conventions as 360). Corporate palette: strong
+  black primary + fuchsia accent (`--color-brand` in `app/app.css`) — brand
+  is for key CTAs (Apply, submit application), black for everything else.
 - Deploy with wrangler; one production environment to start.
 
 ## The golden rules
@@ -35,7 +37,10 @@ this repo must follow this document.
    360-sourced products; never edit their SKUs locally.
 4. **Trade prices live in the portal**, not 360. 360 supplies RRP inc GST as a
    reference; the trade price book (per-product, optionally per-customer-tier)
-   is portal data.
+   is portal data. **Default pricing formula**: trade price inc GST =
+   RRP − `trade_discount_percent` (settings, default 37.5%); ex GST is
+   derived (÷ 1.1). E.g. $299 RRP → $186.88 inc / $169.89 ex. Bulk "price at
+   default" + "activate priced" actions live on the admin products page.
 5. **Stock shown to trade customers = cached 360 availability**, clearly
    timestamped ("stock as at 7:05am"). Do not promise real-time.
 
@@ -109,8 +114,10 @@ this way; the ordering API slots in later without redesign.
 - `orders` + `order_items` — status flow: draft → submitted → confirmed →
   picking → dispatched → completed (+ cancelled). Keep `sale_number_360`
   nullable for phase 2 linkage.
-- `payments` — per order: method, amount, reference; support part-payments and
-  terms (trade customers often pay on account).
+- `payments` — per order: method, amount, reference; support part-payments.
+  **No credit accounts** — orders are invoiced and paid (EFT) before
+  dispatch; the team records payments in admin. Don't say "pay on account"
+  anywhere customer-facing.
 - `users` — admin-panel users (the trade team), role-based (admin / staff). ✅ built
 - `settings` — key/value, mirroring 360's pattern. ✅ built
 
@@ -150,8 +157,8 @@ value stores a jsonb string, not an array). The rules:
   account" form.
 - Logged-in trade customer: prices visible, stock indicators ("In stock" /
   "Low" / "Incoming — ETA Aug"), cart → submit order (no online card payment in
-  phase 1 — orders land in admin, paid on account/invoice, matching how trade
-  works today), order history + statuses, reorder button.
+  phase 1 — orders land in admin and are invoiced; payment upfront by EFT,
+  no credit accounts), order history + statuses, reorder button.
 - Phase 2+: Stripe for card-paying customers, live stock via the orders API.
 
 ## Emails (use Resend, same as 360)
@@ -233,8 +240,8 @@ registration received/approved. Domain-verified sender.
 
 `company_name`, `company_abn`, `company_phone`, `company_email`,
 `company_address`, `trade_api_url`, `trade_api_token` (secret — write-only in
-the UI), `stock_sync_minutes`. Read/write via `settings.server.ts`, which
-upserts key/value rows.
+the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5).
+Read/write via `settings.server.ts`, which upserts key/value rows.
 
 ### Setup on the 360 side (already live — Tim just enables the token)
 

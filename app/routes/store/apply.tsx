@@ -145,7 +145,11 @@ export default function Apply() {
               />
             </div>
             <div className="sm:col-span-2">
-              <Button type="submit" disabled={busy} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={busy}
+                className="w-full bg-brand text-brand-foreground hover:bg-brand/90 sm:w-auto"
+              >
                 {busy ? "Submitting…" : "Submit application"}
               </Button>
             </div>

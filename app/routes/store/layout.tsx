@@ -81,7 +81,7 @@ export default function StoreLayout() {
                 </Link>
                 <Link
                   to="/trade/apply"
-                  className="rounded-md bg-primary px-3.5 py-2 font-medium text-primary-foreground hover:bg-primary/90"
+                  className="rounded-md bg-brand px-3.5 py-2 font-medium text-brand-foreground hover:bg-brand/90"
                 >
                   Apply for trade
                 </Link>

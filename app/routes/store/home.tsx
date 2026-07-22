@@ -8,7 +8,7 @@ export function meta() {
     {
       name: "description",
       content:
-        "Wholesale furniture for retailers, designers and commercial projects. Trade pricing, live availability and ordering on account.",
+        "Wholesale furniture for retailers, designers and commercial projects. Trade pricing, live availability and 24/7 online ordering.",
     },
   ];
 }
@@ -31,8 +31,8 @@ const BENEFITS = [
     body: "See what's in the Wakerley warehouse and what's incoming with ETAs, so you can commit to client deadlines with confidence.",
   },
   {
-    title: "Pay on account",
-    body: "Order on your trade terms with proper GST invoices, and a real team behind the portal when a project needs a hand.",
+    title: "Backed by a real team",
+    body: "Proper GST invoices on every order, and the trade team just a phone call away when a project needs a hand.",
   },
 ];
 
@@ -50,7 +50,7 @@ export default function Home() {
         </h1>
         <p className="max-w-xl text-lg text-muted-foreground">
           For retailers, interior designers and commercial projects — the full catalogue,
-          real-time-synced availability, and ordering on account.
+          regularly synced availability, and online ordering around the clock.
         </p>
         <div className="flex flex-wrap gap-3">
           <Link
@@ -62,7 +62,7 @@ export default function Home() {
           {!loggedIn && (
             <Link
               to="/trade/apply"
-              className="rounded-md border border-input bg-card px-5 py-3 font-medium hover:bg-accent"
+              className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
             >
               Apply for a trade account
             </Link>
@@ -127,7 +127,7 @@ export default function Home() {
             design, and commercial or hospitality fit-out.{" "}
             <Link
               to="/trade/apply"
-              className="font-medium text-foreground underline underline-offset-4"
+              className="font-medium text-brand underline underline-offset-4"
             >
               Apply now
             </Link>{" "}

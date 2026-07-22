@@ -58,9 +58,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   if (intent === "integration") {
+    const discountRaw = Number(String(form.get("trade_discount_percent") ?? "").trim());
     const entries: Record<string, string> = {
       trade_api_url: String(form.get("trade_api_url") ?? "").trim(),
       stock_sync_minutes: String(form.get("stock_sync_minutes") ?? "30").trim(),
+      trade_discount_percent:
+        Number.isFinite(discountRaw) && discountRaw > 0 && discountRaw < 100
+          ? String(discountRaw)
+          : "37.5",
     };
     // Blank token field means "keep the existing token".
     const token = String(form.get("trade_api_token") ?? "").trim();
@@ -189,6 +194,23 @@ export default function SettingsPage() {
                 autoComplete="off"
                 placeholder={tokenConfigured ? "••••••••••••" : "Paste the token from 360"}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="trade_discount_percent">Default trade discount (% off RRP)</Label>
+              <Input
+                id="trade_discount_percent"
+                name="trade_discount_percent"
+                type="number"
+                step="0.1"
+                min={1}
+                max={99}
+                className="max-w-32"
+                defaultValue={settings.trade_discount_percent ?? "37.5"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used by "price at default" on the Products page: trade price inc GST = RRP −
+                this %, ex GST = inc ÷ 1.1 (e.g. $299 RRP → $186.88 inc / $169.89 ex).
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="stock_sync_minutes">Stock sync interval (minutes)</Label>

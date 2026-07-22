@@ -9,7 +9,8 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
-import { getProduct } from "~/lib/products.server";
+import { defaultTradePrice, getProduct } from "~/lib/products.server";
+import { getSetting } from "~/lib/settings.server";
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
@@ -34,7 +35,13 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!Number.isInteger(id)) throw new Response("Not found", { status: 404 });
   const product = await getProduct(context.db, id);
   if (!product) throw new Response("Not found", { status: 404 });
-  return { product };
+  const discountPercent =
+    Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+  const suggested =
+    product.rrp_reference != null
+      ? defaultTradePrice(Number(product.rrp_reference), discountPercent)
+      : null;
+  return { product, discountPercent, suggested };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -45,6 +52,16 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   if (!product) throw new Response("Not found", { status: 404 });
 
   const form = await request.formData();
+
+  if (form.get("intent") === "apply-default" && product.rrp_reference != null) {
+    const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+    const price = defaultTradePrice(Number(product.rrp_reference), discount);
+    await db`
+      UPDATE products SET trade_price = ${price}, updated_at = now() WHERE id = ${id}
+    `;
+    return { ok: `Trade price set to the default (RRP − ${discount}%).` };
+  }
+
   const priceRaw = String(form.get("trade_price") ?? "").trim().replace(/[$,\s]/g, "");
   const active = form.get("active") === "on";
   const name = String(form.get("name") ?? "").trim();
@@ -104,7 +121,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function EditProduct() {
-  const { product } = useLoaderData<typeof loader>();
+  const { product, discountPercent, suggested } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -142,7 +159,12 @@ export default function EditProduct() {
         )}
       </div>
 
-      {actionData?.error && <Alert variant="destructive">{actionData.error}</Alert>}
+      {actionData && "error" in actionData && actionData.error && (
+        <Alert variant="destructive">{actionData.error}</Alert>
+      )}
+      {actionData && "ok" in actionData && actionData.ok && (
+        <Alert variant="success">{actionData.ok}</Alert>
+      )}
 
       {is360 && (
         <Card>
@@ -194,6 +216,14 @@ export default function EditProduct() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {is360 && suggested != null && (
+            <Form method="post" className="mb-4">
+              <input type="hidden" name="intent" value="apply-default" />
+              <Button type="submit" variant="outline" size="sm" disabled={busy}>
+                Set to default price ({formatCurrency(suggested)} inc GST)
+              </Button>
+            </Form>
+          )}
           <Form method="post" className="flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
@@ -203,8 +233,14 @@ export default function EditProduct() {
                   name="trade_price"
                   inputMode="decimal"
                   defaultValue={product.trade_price ?? ""}
-                  placeholder="e.g. 799.00"
+                  placeholder={suggested != null ? String(suggested) : "e.g. 799.00"}
                 />
+                {suggested != null && (
+                  <p className="text-xs text-muted-foreground">
+                    Default (RRP − {discountPercent}%): {formatCurrency(suggested)} inc /{" "}
+                    {formatCurrency(exGst(suggested))} ex GST
+                  </p>
+                )}
               </div>
               <div className="flex items-end gap-2 pb-2">
                 <input
