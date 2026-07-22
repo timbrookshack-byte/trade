@@ -9,6 +9,7 @@ import {
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import type { Customer } from "~/lib/customer-auth.server";
+import { emailTemplates, queueEmail } from "~/lib/email.server";
 import { businessTypeLabel } from "~/lib/customers";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -66,10 +67,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
   if (!Number.isInteger(id)) return { error: "Invalid customer." };
 
   if (intent === "approve") {
-    await db`
+    const [customer] = await db<{ contact_name: string; email: string }[]>`
       UPDATE customers SET approved = TRUE, approved_at = now(), updated_at = now()
       WHERE id = ${id}
+      RETURNING contact_name, email
     `;
+    if (customer) {
+      queueEmail(context, {
+        to: [customer.email],
+        ...emailTemplates.registrationApproved(customer.contact_name),
+      });
+    }
     return { ok: "Customer approved — they can now see trade pricing." };
   }
   if (intent === "revoke") {

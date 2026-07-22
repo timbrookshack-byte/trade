@@ -42,6 +42,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     shopify_admin_token,
     shopify_client_secret,
     shopify_oauth_state: _state,
+    resend_api_key,
     ...safe
   } = settings;
   return {
@@ -49,6 +50,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     tokenConfigured: Boolean(trade_api_token),
     shopifyConnected: Boolean(shopify_admin_token),
     shopifySecretConfigured: Boolean(shopify_client_secret),
+    resendConfigured: Boolean(resend_api_key),
   };
 }
 
@@ -98,11 +100,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Shopify settings saved — now click Connect to Shopify." };
   }
 
+  if (intent === "emails") {
+    const entries: Record<string, string> = {
+      email_from: String(form.get("email_from") ?? "").trim(),
+      email_notify: String(form.get("email_notify") ?? "").trim(),
+    };
+    const key = String(form.get("resend_api_key") ?? "").trim();
+    if (key) entries.resend_api_key = key;
+    await setSettings(context, entries);
+    return { ok: "Email settings saved." };
+  }
+
   return { error: "Unknown action." };
 }
 
 export default function SettingsPage() {
-  const { settings, tokenConfigured, shopifyConnected, shopifySecretConfigured } =
+  const { settings, tokenConfigured, shopifyConnected, shopifySecretConfigured, resendConfigured } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -337,6 +350,61 @@ export default function SettingsPage() {
               >
                 {shopifyConnected ? "Reconnect to Shopify" : "Connect to Shopify"}
               </a>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Emails (Resend)</CardTitle>
+          <CardDescription>
+            Order and registration emails are sent through Resend from a domain-verified
+            sender. Without an API key, everything still works — no emails go out.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4">
+            <input type="hidden" name="intent" value="emails" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="resend_api_key">
+                Resend API key{" "}
+                <span className="font-normal text-muted-foreground">
+                  {resendConfigured ? "(configured — blank keeps it)" : "(not configured yet)"}
+                </span>
+              </Label>
+              <Input
+                id="resend_api_key"
+                name="resend_api_key"
+                type="password"
+                autoComplete="off"
+                placeholder={resendConfigured ? "••••••••••••" : "re_…"}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email_from">From address (verified in Resend)</Label>
+                <Input
+                  id="email_from"
+                  name="email_from"
+                  placeholder="trade@thefurnitureshack.trade"
+                  defaultValue={settings.email_from ?? ""}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email_notify">Trade team inbox (new orders/applications)</Label>
+                <Input
+                  id="email_notify"
+                  name="email_notify"
+                  placeholder="trade@thefurnitureshack.com.au"
+                  defaultValue={settings.email_notify ?? ""}
+                />
+              </div>
+            </div>
+            <div>
+              <Button type="submit" disabled={busy}>
+                Save email settings
+              </Button>
             </div>
           </Form>
         </CardContent>

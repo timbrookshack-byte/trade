@@ -22,7 +22,7 @@ const LOW_STOCK_THRESHOLD = 5;
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
   const sql = context.db;
-  const [settings, newFrom360, lowStock, syncRuns, activeCountRow, pendingRow] =
+  const [settings, newFrom360, lowStock, syncRuns, activeCountRow, pendingRow, orderStats] =
     await Promise.all([
       getSettings(context, ["company_name", "trade_api_token", "trade_api_url"]),
       countNewFrom360(sql),
@@ -34,6 +34,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       sql<{ count: number }[]>`
         SELECT count(*) FROM customers WHERE NOT approved AND active
       `,
+      sql<{ today: number; open: number }[]>`
+        SELECT
+          count(*) FILTER (
+            WHERE (submitted_at AT TIME ZONE 'Australia/Brisbane')::date =
+                  (now() AT TIME ZONE 'Australia/Brisbane')::date
+          )::int AS today,
+          count(*) FILTER (WHERE status IN ('submitted', 'confirmed', 'picking'))::int AS open
+        FROM orders
+        WHERE status <> 'quote'
+      `,
     ]);
   return {
     companyName: settings.company_name ?? "",
@@ -42,6 +52,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     lowStock,
     activeProducts: activeCountRow[0].count,
     pendingRegistrations: pendingRow[0].count,
+    todaysOrders: orderStats[0].today,
+    openOrders: orderStats[0].open,
     lastSync: syncRuns[0] ?? null,
   };
 }
@@ -54,6 +66,8 @@ export default function Dashboard() {
     lowStock,
     activeProducts,
     pendingRegistrations,
+    todaysOrders,
+    openOrders,
     lastSync,
   } = useLoaderData<typeof loader>();
 
@@ -92,7 +106,18 @@ export default function Dashboard() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Link to="/admin/orders">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader>
+              <CardDescription>Today's orders</CardDescription>
+              <CardTitle className="text-3xl">{todaysOrders}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground">
+              {openOrders} open in total.
+            </CardContent>
+          </Card>
+        </Link>
         <Link to="/admin/products?filter=active">
           <Card className="transition-colors hover:bg-accent/50">
             <CardHeader>

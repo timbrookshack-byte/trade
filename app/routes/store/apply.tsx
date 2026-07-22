@@ -7,6 +7,7 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { createCustomerSession, getCustomer, registerCustomer } from "~/lib/customer-auth.server";
+import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { BUSINESS_TYPES, type BusinessType } from "~/lib/customers";
 import { Button } from "~/components/ui/button";
 import { Input, Select, Textarea } from "~/components/ui/input";
@@ -67,6 +68,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   });
   if (!created) {
     return { error: "An account with that email already exists — try logging in instead." };
+  }
+  queueEmail(context, { to: [email], ...emailTemplates.registrationReceived(contactName) });
+  const notify = await getNotifyAddress(context);
+  if (notify) {
+    queueEmail(context, {
+      to: [notify],
+      ...emailTemplates.registrationReceivedTeam(businessName, email),
+    });
   }
   return createCustomerSession(context, created.id, "/products?applied=1");
 }

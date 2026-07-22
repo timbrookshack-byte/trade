@@ -133,13 +133,15 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   price_tier, credit_terms, login (email + password hash or magic link),
   approved (bool — new registrations need admin approval before seeing prices).
   ✅ built (+ business_type; separate `__tp_trade` cookie session)
-- `orders` + `order_items` — status flow: draft → submitted → confirmed →
-  picking → dispatched → completed (+ cancelled). Keep `sale_number_360`
-  nullable for phase 2 linkage.
+- `orders` + `order_items` — status flow: quote → submitted → confirmed →
+  picking → dispatched → completed (+ cancelled); 'quote' is an admin-built
+  order that hasn't been placed (branded Quotation doc, convertible).
+  `sale_number_360` stays nullable for phase 2 linkage. ✅ built (cart is a
+  signed cookie, orders snapshot customer + line prices at submit)
 - `payments` — per order: method, amount, reference; support part-payments.
   **No credit accounts** — orders are invoiced and paid (EFT) before
   dispatch; the team records payments in admin. Don't say "pay on account"
-  anywhere customer-facing.
+  anywhere customer-facing. ✅ built
 - `users` — admin-panel users (the trade team), role-based (admin / staff). ✅ built
 - `settings` — key/value, mirroring 360's pattern. ✅ built
 
@@ -218,8 +220,15 @@ registration received/approved. Domain-verified sender.
    products through `scrubProductForPublic` — loader data is serialised
    into HTML, so trade prices must be stripped server-side, never just
    hidden in the UI.)**
-4. Cart → order submission → admin order management + payments.
-5. Invoicing PDFs + emails.
+4. ✅ Cart → order submission → admin order management + payments. **(done —
+   storefront cart/checkout, account order history + reorder, admin orders
+   list/detail with status flow + payment recording + low-stock line flags,
+   quote builder from product selection with editable lines)**
+5. ✅ Invoicing PDFs + emails. **(done — Tax Invoice / Packing slip /
+   Quotation print-to-PDF docs at /admin/orders/:id/doc; Resend emails for
+   registration received/approved, order submitted (customer + team),
+   confirmed, dispatched — settings resend_api_key (secret), email_from,
+   email_notify; emails no-op silently when unconfigured)**
 6. Phase 2: 360 orders API integration (coordinate with the 360 side — the
    contract above is the starting point; confirm before building).
 
@@ -268,7 +277,8 @@ registration received/approved. Domain-verified sender.
 `company_name`, `company_abn`, `company_phone`, `company_email`,
 `company_address`, `trade_api_url`, `trade_api_token` (secret — write-only in
 the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5),
-`shopify_domain`, `shopify_admin_token` (secret — write-only in the UI).
+`shopify_domain`, `shopify_admin_token` (secret — write-only in the UI),
+`resend_api_key` (secret), `email_from`, `email_notify`.
 Read/write via `settings.server.ts`, which upserts key/value rows.
 
 ### Setup on the 360 side (already live — Tim just enables the token)

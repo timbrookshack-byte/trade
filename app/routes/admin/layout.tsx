@@ -29,7 +29,7 @@ const nav = [
   { to: "/admin/products", label: "Products", icon: Package },
   { to: "/admin/categories", label: "Categories", icon: Tags },
   { to: "/admin/customers", label: "Customers", icon: UserRound },
-  { to: "/admin/orders", label: "Orders", icon: ShoppingCart, soon: true },
+  { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -49,7 +49,7 @@ export default function AdminLayout() {
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-2">
           {nav.map((item) =>
-            item.soon ? (
+            "soon" in item && item.soon ? (
               <span
                 key={item.to}
                 className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground/60"

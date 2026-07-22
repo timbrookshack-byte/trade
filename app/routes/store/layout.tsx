@@ -7,15 +7,18 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { getCustomer } from "~/lib/customer-auth.server";
+import { readCart } from "~/lib/cart.server";
 import { getSettings } from "~/lib/settings.server";
 import { cn } from "~/lib/utils";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const [customer, settings] = await Promise.all([
+  const [customer, settings, cart] = await Promise.all([
     getCustomer(context, request),
     getSettings(context, ["company_name", "company_phone", "company_email", "company_address"]),
+    readCart(context, request),
   ]);
   return {
+    cartCount: cart.reduce((sum, l) => sum + l.qty, 0),
     customer: customer
       ? {
           businessName: customer.business_name,
@@ -33,7 +36,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 export default function StoreLayout() {
-  const { customer, company } = useLoaderData<typeof loader>();
+  const { customer, company, cartCount } = useLoaderData<typeof loader>();
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -60,6 +63,12 @@ export default function StoreLayout() {
           <div className="ml-auto flex items-center gap-3 text-sm">
             {customer ? (
               <>
+                <NavLink to="/account/orders" className="underline-offset-4 hover:underline">
+                  Orders
+                </NavLink>
+                <NavLink to="/cart" className="font-medium underline-offset-4 hover:underline">
+                  Cart{cartCount > 0 && <span className="ml-1 rounded-full bg-brand px-1.5 text-xs text-brand-foreground">{cartCount}</span>}
+                </NavLink>
                 <span className="hidden text-muted-foreground sm:inline">
                   {customer.businessName}
                 </span>

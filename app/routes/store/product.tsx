@@ -1,4 +1,14 @@
-import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
+import {
+  Form,
+  Link,
+  redirect,
+  useLoaderData,
+  useNavigation,
+  useSearchParams,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+} from "react-router";
+import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
 import { getStoreProduct, scrubProductForPublic } from "~/lib/store.server";
 import { getBundleComponents } from "~/lib/shopify.server";
 import { getCustomer } from "~/lib/customer-auth.server";
@@ -29,8 +39,26 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   };
 }
 
+export async function action({ request, context, params }: ActionFunctionArgs) {
+  const customer = await getCustomer(context, request);
+  if (!customer?.approved) throw redirect("/trade/login");
+  const product = await getStoreProduct(context, params.sku ?? "");
+  if (!product || product.trade_price == null) {
+    throw new Response("Not available to order", { status: 400 });
+  }
+  const form = await request.formData();
+  const qty = Math.max(1, Math.min(999, Math.trunc(Number(form.get("qty")) || 1)));
+  const cart = addToCart(await readCart(context, request), product.sku, qty);
+  return redirect(`/products/${encodeURIComponent(product.sku)}?added=${qty}`, {
+    headers: { "Set-Cookie": await serializeCart(context, cart) },
+  });
+}
+
 export default function StoreProduct() {
   const { product, contents, showPrices, loggedIn } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
+  const added = searchParams.get("added");
   const stock = stockStatus(product);
   const price = product.trade_price != null ? Number(product.trade_price) : null;
 
@@ -122,10 +150,36 @@ export default function StoreProduct() {
                   ))}
                 </ul>
               )}
-              <p className="mt-4 text-sm text-muted-foreground">
-                Ordering opens soon — in the meantime contact the trade team to place an order
-                for this item.
-              </p>
+              {price != null && (
+                <Form method="post" className="mt-4 flex items-end gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label htmlFor="qty" className="text-xs font-medium text-muted-foreground">
+                      Quantity
+                    </label>
+                    <input
+                      id="qty"
+                      name="qty"
+                      type="number"
+                      min={1}
+                      max={999}
+                      defaultValue={1}
+                      className="h-10 w-20 rounded-md border border-input bg-card px-3 text-sm"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={navigation.state !== "idle"}
+                    className="h-10 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    Add to cart
+                  </button>
+                  {added && (
+                    <Link to="/cart" className="text-sm font-medium text-brand underline underline-offset-4">
+                      Added ✓ — view cart
+                    </Link>
+                  )}
+                </Form>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-border bg-card p-5">

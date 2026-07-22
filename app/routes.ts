@@ -8,11 +8,15 @@ export default [
     route("products/:sku", "routes/store/product.tsx"),
     route("trade/apply", "routes/store/apply.tsx"),
     route("trade/login", "routes/store/login.tsx"),
+    route("cart", "routes/store/cart.tsx"),
+    route("account/orders", "routes/store/orders.tsx"),
+    route("account/orders/:id", "routes/store/order.tsx"),
   ]),
   route("trade/logout", "routes/store/logout.tsx"),
 
-  // Product sheet (print/PDF view — standalone, no admin shell)
+  // Print/PDF views — standalone, no admin shell
   route("admin/products/sheet", "routes/admin/products/sheet.tsx"),
+  route("admin/orders/:id/doc", "routes/admin/orders/doc.tsx"),
 
   // Shopify OAuth (no UI shell; auth enforced in the loaders)
   route("admin/shopify/connect", "routes/admin/shopify-connect.tsx"),
@@ -31,6 +35,8 @@ export default [
     route("admin/products/:id", "routes/admin/products/edit.tsx"),
     route("admin/categories", "routes/admin/categories.tsx"),
     route("admin/customers", "routes/admin/customers.tsx"),
+    route("admin/orders", "routes/admin/orders/list.tsx"),
+    route("admin/orders/:id", "routes/admin/orders/detail.tsx"),
     route("admin/settings", "routes/admin/settings.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
   ]),

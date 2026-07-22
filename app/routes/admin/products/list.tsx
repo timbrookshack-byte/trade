@@ -18,6 +18,7 @@ import {
   listAllCategories,
   listProducts,
 } from "~/lib/products.server";
+import { createOrder } from "~/lib/orders.server";
 import { getSetting } from "~/lib/settings.server";
 import { runShopifyBundleSync } from "~/lib/shopify.server";
 import { getLastSyncRuns, runSync } from "~/lib/sync.server";
@@ -68,7 +69,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  await requireUser(context, request);
+  const user = await requireUser(context, request);
   const form = await request.formData();
   const intent = form.get("intent");
   if (intent === "sync") {
@@ -98,13 +99,35 @@ export async function action({ request, context }: ActionFunctionArgs) {
     intent === "selected-activate" ||
     intent === "selected-deactivate" ||
     intent === "selected-price-default" ||
-    intent === "selected-sheet"
+    intent === "selected-sheet" ||
+    intent === "selected-quote"
   ) {
     if (ids.length === 0) {
       return { bulkResult: "No products ticked — tick some rows first." };
     }
     if (intent === "selected-sheet") {
       throw redirect(`/admin/products/sheet?ids=${ids.join(",")}`);
+    }
+    if (intent === "selected-quote") {
+      const db = context.db;
+      const products = await db<
+        { id: number; sku: string; name: string; trade_price: string | null }[]
+      >`
+        SELECT id, sku, name, trade_price FROM products WHERE id IN ${db(ids)}
+        ORDER BY category, name
+      `;
+      const orderId = await createOrder(db, {
+        status: "quote",
+        created_by_user_id: user.id,
+        lines: products.map((p: { id: number; sku: string; name: string; trade_price: string | null }) => ({
+          product_id: p.id,
+          sku: p.sku,
+          name: p.name,
+          quantity: 1,
+          unit_price_inc_gst: Number(p.trade_price ?? 0),
+        })),
+      });
+      throw redirect(`/admin/orders/${orderId}`);
     }
     const db = context.db;
     if (intent === "selected-deactivate") {
@@ -294,6 +317,9 @@ export default function ProductsList() {
             </Button>
             <Button type="submit" name="intent" value="selected-sheet" variant="outline" size="sm">
               Product sheet
+            </Button>
+            <Button type="submit" name="intent" value="selected-quote" variant="outline" size="sm">
+              Create quote
             </Button>
           </div>
           <Table>
