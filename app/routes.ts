@@ -11,6 +11,10 @@ export default [
   ]),
   route("trade/logout", "routes/store/logout.tsx"),
 
+  // Shopify OAuth (no UI shell; auth enforced in the loaders)
+  route("admin/shopify/connect", "routes/admin/shopify-connect.tsx"),
+  route("admin/shopify/callback", "routes/admin/shopify-callback.tsx"),
+
   // Admin auth (outside the authed shell)
   route("admin/setup", "routes/admin/setup.tsx"),
   route("admin/login", "routes/admin/login.tsx"),

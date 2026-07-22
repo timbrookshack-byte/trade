@@ -105,8 +105,12 @@ this way; the ordering API slots in later without redesign.
 Lounge packages built with Shopify's **native Bundles app** sync into the
 portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
 
-- Custom app in Shopify admin with `read_products` scope; settings keys
-  `shopify_domain` + `shopify_admin_token` (secret, write-only in the UI).
+- Auth: OAuth (new Shopify Dev Dashboard apps — client id + `shpss_` secret).
+  Settings keys `shopify_domain`, `shopify_client_id`, `shopify_client_secret`
+  (secret); "Connect to Shopify" (/admin/shopify/connect → callback verifies
+  state + HMAC, exchanges the code) stores the access token in
+  `shopify_admin_token`. A manually-issued shpat token pasted into that
+  settings row also works — the sync only reads `shopify_admin_token`.
 - Bundles land as products with `source = 'shopify'`; component SKUs + qtys
   go to `bundle_components`. Same rules as the 360 sync: trade_price and
   override-flagged copy never touched; vanished bundles → `discontinued_at`.

@@ -27,11 +27,83 @@ interface ShopifyBundle {
   components: { sku: string; quantity: number }[];
 }
 
-function graphqlUrl(domain: string) {
+function shopBaseUrl(domain: string) {
   const clean = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   // http for localhost so the sync is testable against a local mock.
   const scheme = clean.startsWith("localhost") || clean.startsWith("127.") ? "http" : "https";
-  return `${scheme}://${clean}/admin/api/${API_VERSION}/graphql.json`;
+  return `${scheme}://${clean}`;
+}
+
+function graphqlUrl(domain: string) {
+  return `${shopBaseUrl(domain)}/admin/api/${API_VERSION}/graphql.json`;
+}
+
+// --- OAuth (new Shopify Dev Dashboard apps: client id + shpss_ client secret).
+// The merchant clicks "Connect to Shopify" in Settings → approves in Shopify →
+// the callback verifies the HMAC and exchanges the code for an offline access
+// token, which is stored in settings.shopify_admin_token for the sync to use.
+
+export function buildAuthorizeUrl(input: {
+  domain: string;
+  clientId: string;
+  redirectUri: string;
+  state: string;
+}) {
+  const url = new URL(`${shopBaseUrl(input.domain)}/admin/oauth/authorize`);
+  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("scope", "read_products");
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("state", input.state);
+  return url.toString();
+}
+
+/** Verify Shopify's callback HMAC: SHA-256 of the sorted query string, keyed by the client secret. */
+export async function verifyCallbackHmac(searchParams: URLSearchParams, clientSecret: string) {
+  const hmac = searchParams.get("hmac");
+  if (!hmac) return false;
+  const message = [...searchParams.entries()]
+    .filter(([key]) => key !== "hmac" && key !== "signature")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(clientSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  const expected = [...new Uint8Array(signature)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  if (expected.length !== hmac.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ hmac.charCodeAt(i);
+  return diff === 0;
+}
+
+export async function exchangeCodeForToken(input: {
+  domain: string;
+  clientId: string;
+  clientSecret: string;
+  code: string;
+}) {
+  const response = await fetch(`${shopBaseUrl(input.domain)}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      code: input.code,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`);
+  }
+  const payload = (await response.json()) as { access_token?: string };
+  if (!payload.access_token) throw new Error("Token exchange returned no access token.");
+  return payload.access_token;
 }
 
 function stripHtml(html: string) {

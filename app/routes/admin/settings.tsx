@@ -3,6 +3,7 @@ import {
   useActionData,
   useLoaderData,
   useNavigation,
+  useSearchParams,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
@@ -35,12 +36,19 @@ const COMPANY_KEYS = [
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request, { role: "admin" });
   const settings = await getSettings(context);
-  // API tokens are secrets — never send their values to the browser.
-  const { trade_api_token, shopify_admin_token, ...safe } = settings;
+  // API tokens/secrets are never sent to the browser.
+  const {
+    trade_api_token,
+    shopify_admin_token,
+    shopify_client_secret,
+    shopify_oauth_state: _state,
+    ...safe
+  } = settings;
   return {
     settings: safe,
     tokenConfigured: Boolean(trade_api_token),
-    shopifyTokenConfigured: Boolean(shopify_admin_token),
+    shopifyConnected: Boolean(shopify_admin_token),
+    shopifySecretConfigured: Boolean(shopify_client_secret),
   };
 }
 
@@ -81,22 +89,27 @@ export async function action({ request, context }: ActionFunctionArgs) {
         .trim()
         .replace(/^https?:\/\//, "")
         .replace(/\/.*$/, ""),
+      shopify_client_id: String(form.get("shopify_client_id") ?? "").trim(),
     };
-    // Blank token field means "keep the existing token".
-    const token = String(form.get("shopify_admin_token") ?? "").trim();
-    if (token) entries.shopify_admin_token = token;
+    // Blank secret field means "keep the existing one".
+    const secret = String(form.get("shopify_client_secret") ?? "").trim();
+    if (secret) entries.shopify_client_secret = secret;
     await setSettings(context, entries);
-    return { ok: "Shopify settings saved." };
+    return { ok: "Shopify settings saved — now click Connect to Shopify." };
   }
 
   return { error: "Unknown action." };
 }
 
 export default function SettingsPage() {
-  const { settings, tokenConfigured, shopifyTokenConfigured } = useLoaderData<typeof loader>();
+  const { settings, tokenConfigured, shopifyConnected, shopifySecretConfigured } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const [searchParams] = useSearchParams();
   const busy = navigation.state !== "idle";
+  const shopifyJustConnected = searchParams.get("shopify") === "connected";
+  const shopifyError = searchParams.get("shopify_error");
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
@@ -112,6 +125,12 @@ export default function SettingsPage() {
       {actionData && "error" in actionData && (
         <Alert variant="destructive">{actionData.error}</Alert>
       )}
+      {shopifyJustConnected && (
+        <Alert variant="success">
+          Connected to Shopify — run "Sync bundles" on the Products page to pull your packages.
+        </Alert>
+      )}
+      {shopifyError && <Alert variant="destructive">Shopify connection: {shopifyError}</Alert>}
 
       <Card>
         <CardHeader>
@@ -253,13 +272,21 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Shopify (lounge bundles)</CardTitle>
+          <CardTitle>
+            Shopify (lounge bundles)
+            {shopifyConnected && (
+              <span className="ml-2 rounded-full bg-green-600/10 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                connected
+              </span>
+            )}
+          </CardTitle>
           <CardDescription>
             Pulls bundles built with Shopify's native Bundles app — including their component
-            SKUs — so packaged deals stay in sync automatically. In Shopify admin: Settings →
-            Apps and sales channels → Develop apps → create an app with the{" "}
-            <span className="font-mono">read_products</span> scope, install it, and paste the
-            Admin API access token here. The token is stored server-side only.
+            SKUs — so packaged deals stay in sync automatically. Create an app in the Shopify
+            Dev Dashboard with the <span className="font-mono">read_products</span> scope and
+            redirect URL <span className="font-mono">https://thefurnitureshack.trade/admin/shopify/callback</span>,
+            paste its Client ID and Client secret here, save, then click Connect. Secrets are
+            stored server-side only.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -274,25 +301,42 @@ export default function SettingsPage() {
                 defaultValue={settings.shopify_domain ?? ""}
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="shopify_admin_token">
-                Admin API access token{" "}
-                <span className="font-normal text-muted-foreground">
-                  {shopifyTokenConfigured ? "(configured — blank keeps it)" : "(not configured yet)"}
-                </span>
-              </Label>
-              <Input
-                id="shopify_admin_token"
-                name="shopify_admin_token"
-                type="password"
-                autoComplete="off"
-                placeholder={shopifyTokenConfigured ? "••••••••••••" : "shpat_…"}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="shopify_client_id">Client ID</Label>
+                <Input
+                  id="shopify_client_id"
+                  name="shopify_client_id"
+                  autoComplete="off"
+                  defaultValue={settings.shopify_client_id ?? ""}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="shopify_client_secret">
+                  Client secret{" "}
+                  <span className="font-normal text-muted-foreground">
+                    {shopifySecretConfigured ? "(saved — blank keeps it)" : "(shpss_…)"}
+                  </span>
+                </Label>
+                <Input
+                  id="shopify_client_secret"
+                  name="shopify_client_secret"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={shopifySecretConfigured ? "••••••••••••" : "shpss_…"}
+                />
+              </div>
             </div>
-            <div>
+            <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={busy}>
                 Save Shopify settings
               </Button>
+              <a
+                href="/admin/shopify/connect"
+                className="inline-flex h-10 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand/90"
+              >
+                {shopifyConnected ? "Reconnect to Shopify" : "Connect to Shopify"}
+              </a>
             </div>
           </Form>
         </CardContent>
