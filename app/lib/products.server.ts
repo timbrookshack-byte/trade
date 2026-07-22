@@ -15,6 +15,7 @@ export async function listProducts(
         WHEN 'active' THEN active AND discontinued_at IS NULL
         WHEN 'inactive' THEN NOT active AND discontinued_at IS NULL
         WHEN 'new' THEN source = 'shack360' AND NOT active AND trade_price IS NULL AND discontinued_at IS NULL
+        WHEN 'bundles' THEN source = 'shopify'
         WHEN 'portal' THEN source = 'portal'
         WHEN 'discontinued' THEN discontinued_at IS NOT NULL
         ELSE TRUE
@@ -55,6 +56,31 @@ export async function applyDefaultPricing(db: Sql, discountPercent: number) {
     RETURNING id
   `;
   return rows.length;
+}
+
+/**
+ * Recompute cached stock for Shopify bundles from their components' cached
+ * 360 stock: min(floor(component available / qty)); 0 if any component is
+ * missing from the portal or discontinued. Called after every sync.
+ */
+export async function recomputeBundleStock(db: Sql) {
+  await db`
+    UPDATE products b
+    SET available_now = COALESCE(sub.avail, 0)
+    FROM (
+      SELECT bc.bundle_id,
+             MIN(
+               CASE
+                 WHEN c.id IS NULL OR c.discontinued_at IS NOT NULL THEN 0
+                 ELSE FLOOR(c.available_now / bc.quantity)
+               END
+             )::int AS avail
+      FROM bundle_components bc
+      LEFT JOIN products c ON upper(c.sku) = upper(bc.component_sku)
+      GROUP BY bc.bundle_id
+    ) sub
+    WHERE b.id = sub.bundle_id AND b.source = 'shopify'
+  `;
 }
 
 /** Activate every priced, inactive, non-discontinued product. Returns count. */

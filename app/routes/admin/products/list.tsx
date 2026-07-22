@@ -18,6 +18,7 @@ import {
   listProducts,
 } from "~/lib/products.server";
 import { getSetting } from "~/lib/settings.server";
+import { runShopifyBundleSync } from "~/lib/shopify.server";
 import { getLastSyncRuns, runSync } from "~/lib/sync.server";
 import { cn, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -71,6 +72,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const intent = form.get("intent");
   if (intent === "sync") {
     const result = await runSync(context.db, "manual");
+    return { syncResult: result };
+  }
+  if (intent === "sync-bundles") {
+    const result = await runShopifyBundleSync(context.db, "manual");
     return { syncResult: result };
   }
   if (intent === "price-defaults") {
@@ -167,6 +172,12 @@ export default function ProductsList() {
             <Button type="submit" variant="outline" disabled={syncing}>
               <RefreshCw className={cn(syncing && "animate-spin")} />
               {syncing ? "Syncing…" : "Sync now"}
+            </Button>
+          </Form>
+          <Form method="post">
+            <input type="hidden" name="intent" value="sync-bundles" />
+            <Button type="submit" variant="outline" disabled={syncing}>
+              Sync bundles
             </Button>
           </Form>
           <Link
@@ -357,6 +368,7 @@ export default function ProductsList() {
                         <Badge variant="secondary">inactive</Badge>
                       )}
                       {p.source === "portal" && <Badge variant="outline">portal</Badge>}
+                      {p.source === "shopify" && <Badge variant="outline">bundle</Badge>}
                     </div>
                   </TableCell>
                 </TableRow>

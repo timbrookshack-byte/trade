@@ -1,5 +1,6 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { getStoreProduct, scrubProductForPublic } from "~/lib/store.server";
+import { getBundleComponents } from "~/lib/shopify.server";
 import { getCustomer } from "~/lib/customer-auth.server";
 import { stockStatus } from "~/lib/stock";
 import { cn, exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
@@ -13,15 +14,23 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!product) throw new Response("Not found", { status: 404 });
   const customer = await getCustomer(context, request);
   const showPrices = Boolean(customer?.approved);
+  // Bundle contents are public info (names + quantities, never prices).
+  const contents =
+    product.source === "shopify"
+      ? (await getBundleComponents(context.db, product.id))
+          .filter((c) => c.name)
+          .map((c) => ({ name: c.name as string, quantity: c.quantity }))
+      : [];
   return {
     product: showPrices ? product : scrubProductForPublic(product),
+    contents,
     showPrices,
     loggedIn: Boolean(customer),
   };
 }
 
 export default function StoreProduct() {
-  const { product, showPrices, loggedIn } = useLoaderData<typeof loader>();
+  const { product, contents, showPrices, loggedIn } = useLoaderData<typeof loader>();
   const stock = stockStatus(product);
   const price = product.trade_price != null ? Number(product.trade_price) : null;
 
@@ -142,6 +151,19 @@ export default function StoreProduct() {
                   </Link>
                 </div>
               )}
+            </div>
+          )}
+
+          {contents.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-5">
+              <p className="font-semibold">What's included</p>
+              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {contents.map((c, i) => (
+                  <li key={i}>
+                    {c.quantity} × {c.name}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

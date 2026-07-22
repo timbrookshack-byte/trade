@@ -35,11 +35,12 @@ const COMPANY_KEYS = [
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request, { role: "admin" });
   const settings = await getSettings(context);
-  // The API token is a secret — never send its value to the browser.
-  const { trade_api_token, ...safe } = settings;
+  // API tokens are secrets — never send their values to the browser.
+  const { trade_api_token, shopify_admin_token, ...safe } = settings;
   return {
     settings: safe,
     tokenConfigured: Boolean(trade_api_token),
+    shopifyTokenConfigured: Boolean(shopify_admin_token),
   };
 }
 
@@ -74,11 +75,25 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Integration settings saved." };
   }
 
+  if (intent === "shopify") {
+    const entries: Record<string, string> = {
+      shopify_domain: String(form.get("shopify_domain") ?? "")
+        .trim()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, ""),
+    };
+    // Blank token field means "keep the existing token".
+    const token = String(form.get("shopify_admin_token") ?? "").trim();
+    if (token) entries.shopify_admin_token = token;
+    await setSettings(context, entries);
+    return { ok: "Shopify settings saved." };
+  }
+
   return { error: "Unknown action." };
 }
 
 export default function SettingsPage() {
-  const { settings, tokenConfigured } = useLoaderData<typeof loader>();
+  const { settings, tokenConfigured, shopifyTokenConfigured } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -230,6 +245,53 @@ export default function SettingsPage() {
             <div>
               <Button type="submit" disabled={busy}>
                 Save integration settings
+              </Button>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Shopify (lounge bundles)</CardTitle>
+          <CardDescription>
+            Pulls bundles built with Shopify's native Bundles app — including their component
+            SKUs — so packaged deals stay in sync automatically. In Shopify admin: Settings →
+            Apps and sales channels → Develop apps → create an app with the{" "}
+            <span className="font-mono">read_products</span> scope, install it, and paste the
+            Admin API access token here. The token is stored server-side only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4">
+            <input type="hidden" name="intent" value="shopify" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="shopify_domain">Shop domain</Label>
+              <Input
+                id="shopify_domain"
+                name="shopify_domain"
+                placeholder="your-store.myshopify.com"
+                defaultValue={settings.shopify_domain ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="shopify_admin_token">
+                Admin API access token{" "}
+                <span className="font-normal text-muted-foreground">
+                  {shopifyTokenConfigured ? "(configured — blank keeps it)" : "(not configured yet)"}
+                </span>
+              </Label>
+              <Input
+                id="shopify_admin_token"
+                name="shopify_admin_token"
+                type="password"
+                autoComplete="off"
+                placeholder={shopifyTokenConfigured ? "••••••••••••" : "shpat_…"}
+              />
+            </div>
+            <div>
+              <Button type="submit" disabled={busy}>
+                Save Shopify settings
               </Button>
             </div>
           </Form>

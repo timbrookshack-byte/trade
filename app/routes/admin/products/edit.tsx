@@ -10,6 +10,7 @@ import {
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import { defaultTradePrice, getProduct } from "~/lib/products.server";
+import { getBundleComponents, type BundleComponentRow } from "~/lib/shopify.server";
 import { getSetting } from "~/lib/settings.server";
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -41,7 +42,9 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     product.rrp_reference != null
       ? defaultTradePrice(Number(product.rrp_reference), discountPercent)
       : null;
-  return { product, discountPercent, suggested };
+  const components =
+    product.source === "shopify" ? await getBundleComponents(context.db, product.id) : [];
+  return { product, discountPercent, suggested, components };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -79,8 +82,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     return { error: "Set a trade price before activating — never publish without a price." };
   }
 
-  if (product.source === "shack360") {
-    // Copy edits on a 360 product become overrides so the sync stops
+  if (product.source !== "portal") {
+    // Copy edits on a synced product become overrides so the sync stops
     // touching those fields. Unchanged fields keep following 360.
     const overrides = { ...product.overrides };
     if (name !== product.name) overrides.name = true;
@@ -121,11 +124,12 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function EditProduct() {
-  const { product, discountPercent, suggested } = useLoaderData<typeof loader>();
+  const { product, discountPercent, suggested, components } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
-  const is360 = product.source === "shack360";
+  const isSynced = product.source !== "portal";
+  const isBundle = product.source === "shopify";
   const price = product.trade_price != null ? Number(product.trade_price) : null;
 
   return (
@@ -140,8 +144,8 @@ export default function EditProduct() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
           <div className="mt-1 flex gap-1">
-            <Badge variant={is360 ? "secondary" : "outline"}>
-              {is360 ? "From Shack360" : "Portal-only"}
+            <Badge variant={isSynced ? "secondary" : "outline"}>
+              {isBundle ? "Shopify bundle" : isSynced ? "From Shack360" : "Portal-only"}
             </Badge>
             {product.discontinued_at && (
               <Badge variant="destructive">
@@ -166,10 +170,10 @@ export default function EditProduct() {
         <Alert variant="success">{actionData.ok}</Alert>
       )}
 
-      {is360 && (
+      {isSynced && (
         <Card>
           <CardHeader>
-            <CardTitle>Stock (from 360)</CardTitle>
+            <CardTitle>{isBundle ? "Bundle availability (computed)" : "Stock (from 360)"}</CardTitle>
             <CardDescription>
               Wakerley sellable stock, as at{" "}
               {product.stock_synced_at ? formatDateTime(product.stock_synced_at) : "never synced"}.
@@ -207,6 +211,41 @@ export default function EditProduct() {
         </Card>
       )}
 
+      {isBundle && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bundle contents (from Shopify)</CardTitle>
+            <CardDescription>
+              Availability above is the most this bundle can be assembled from component
+              stock. Components missing from the portal make the bundle unavailable.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {components.map((c: BundleComponentRow) => (
+                <li key={c.component_sku} className="flex items-center gap-3">
+                  <span className="font-mono text-xs">{c.component_sku}</span>
+                  <span className="font-medium">×{c.quantity}</span>
+                  {c.name ? (
+                    <span>{c.name}</span>
+                  ) : (
+                    <span className="text-destructive">not found in portal catalogue</span>
+                  )}
+                  {c.name && (
+                    <span className="ml-auto text-muted-foreground">
+                      {c.discontinued ? "discontinued" : `${c.available_now} in stock`}
+                    </span>
+                  )}
+                </li>
+              ))}
+              {components.length === 0 && (
+                <li className="text-muted-foreground">No components recorded — re-run Sync bundles.</li>
+              )}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Trade pricing & visibility</CardTitle>
@@ -216,7 +255,7 @@ export default function EditProduct() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {is360 && suggested != null && (
+          {isSynced && suggested != null && (
             <Form method="post" className="mb-4">
               <input type="hidden" name="intent" value="apply-default" />
               <Button type="submit" variant="outline" size="sm" disabled={busy}>
@@ -254,7 +293,7 @@ export default function EditProduct() {
               </div>
             </div>
 
-            {!is360 && (
+            {!isSynced && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="sku">SKU</Label>
@@ -270,7 +309,7 @@ export default function EditProduct() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">
                 Name
-                {is360 && product.overrides.name && (
+                {isSynced && product.overrides.name && (
                   <span className="ml-2 font-normal text-muted-foreground">
                     (edited locally — no longer follows 360)
                   </span>
@@ -281,7 +320,7 @@ export default function EditProduct() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="description">
                 Description
-                {is360 && product.overrides.description && (
+                {isSynced && product.overrides.description && (
                   <span className="ml-2 font-normal text-muted-foreground">
                     (edited locally — no longer follows 360)
                   </span>
@@ -293,15 +332,15 @@ export default function EditProduct() {
                 rows={5}
                 defaultValue={product.description}
               />
-              {is360 && (
+              {isSynced && (
                 <p className="text-xs text-muted-foreground">
-                  Editing the name or description here stops the 360 sync from updating that
+                  Editing the name or description here stops the sync from updating that
                   field on this product.
                 </p>
               )}
             </div>
 
-            {!is360 && (
+            {!isSynced && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="dimensions">Dimensions</Label>

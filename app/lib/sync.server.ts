@@ -1,4 +1,6 @@
 import type { Sql } from "./db.server";
+import { recomputeBundleStock } from "./products.server";
+import { runScheduledShopifySync } from "./shopify.server";
 
 /**
  * The 360 product sync — the heart of the integration (CLAUDE.md).
@@ -58,7 +60,7 @@ export async function runSync(db: Sql, trigger: "cron" | "manual"): Promise<Sync
   }
 
   const [run] = await db<{ id: number }[]>`
-    INSERT INTO sync_runs (trigger) VALUES (${trigger}) RETURNING id
+    INSERT INTO sync_runs (trigger, kind) VALUES (${trigger}, 'shack360') RETURNING id
   `;
 
   try {
@@ -152,6 +154,9 @@ export async function runSync(db: Sql, trigger: "cron" | "manual"): Promise<Sync
           `
         : [];
 
+    // Bundle availability derives from component stock — refresh it now.
+    await recomputeBundleStock(db);
+
     await db`
       UPDATE sync_runs SET
         finished_at = now(),
@@ -193,18 +198,21 @@ export async function runScheduledSync(db: Sql): Promise<SyncResult> {
 
   const [last] = await db<{ started_at: string }[]>`
     SELECT started_at FROM sync_runs
-    WHERE status = 'success'
+    WHERE status = 'success' AND kind = 'shack360'
     ORDER BY started_at DESC
     LIMIT 1
   `;
-  if (last) {
-    const elapsedMs = Date.now() - new Date(last.started_at).getTime();
+  let result: SyncResult = { status: "skipped" };
+  if (
+    !last ||
+    Date.now() - new Date(last.started_at).getTime() >= (intervalMinutes - 2) * 60_000
     // Small grace so a 30-min interval isn't skipped by a cron firing at 29:59.
-    if (elapsedMs < (intervalMinutes - 2) * 60_000) {
-      return { status: "skipped" };
-    }
+  ) {
+    result = await runSync(db, "cron");
   }
-  return runSync(db, "cron");
+  // Shopify bundle sync rides the same cron (skips itself if unconfigured).
+  await runScheduledShopifySync(db);
+  return result;
 }
 
 export async function getLastSyncRuns(db: Sql, limit = 5) {
@@ -222,6 +230,7 @@ export async function getLastSyncRuns(db: Sql, limit = 5) {
       error: string | null;
     }[]
   >`
-    SELECT * FROM sync_runs ORDER BY started_at DESC LIMIT ${limit}
+    SELECT * FROM sync_runs WHERE kind = 'shack360'
+    ORDER BY started_at DESC LIMIT ${limit}
   `;
 }

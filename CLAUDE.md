@@ -100,6 +100,24 @@ manual confirmation, and (c) the trade team keying large orders into 360
 manually (they do this today with Shopify orders). Build phase 1 fully working
 this way; the ordering API slots in later without redesign.
 
+## Shopify bundle sync (✅ built)
+
+Lounge packages built with Shopify's **native Bundles app** sync into the
+portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
+
+- Custom app in Shopify admin with `read_products` scope; settings keys
+  `shopify_domain` + `shopify_admin_token` (secret, write-only in the UI).
+- Bundles land as products with `source = 'shopify'`; component SKUs + qtys
+  go to `bundle_components`. Same rules as the 360 sync: trade_price and
+  override-flagged copy never touched; vanished bundles → `discontinued_at`.
+- **Bundle `available_now` is computed**, not synced:
+  min(floor(component stock / qty)), 0 if any component is missing from the
+  portal or discontinued. `recomputeBundleStock` runs after BOTH syncs.
+- Storefront product page shows "What's included" (names + qtys, no prices);
+  rides the same 15-min cron ("Sync bundles" button for manual runs).
+- Component SKUs in Shopify must match 360 SKUs — mismatches show on the
+  bundle's admin edit page as "not found in portal catalogue".
+
 ## Portal data model (its own Postgres)
 
 - `products` — sku (unique), name, category, description, images, trade_price,
@@ -245,7 +263,8 @@ registration received/approved. Domain-verified sender.
 
 `company_name`, `company_abn`, `company_phone`, `company_email`,
 `company_address`, `trade_api_url`, `trade_api_token` (secret — write-only in
-the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5).
+the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5),
+`shopify_domain`, `shopify_admin_token` (secret — write-only in the UI).
 Read/write via `settings.server.ts`, which upserts key/value rows.
 
 ### Setup on the 360 side (already live — Tim just enables the token)
