@@ -17,7 +17,10 @@ export async function listCategories(context: AppLoadContext): Promise<CategoryT
   return context.db<CategoryTile[]>`
     SELECT COALESCE(NULLIF(cs.display_name, ''), p.category) AS category,
            count(*) AS product_count,
-           (ARRAY_REMOVE(ARRAY_AGG(NULLIF(p.image_url, '') ORDER BY p.available_now DESC), NULL))[1] AS image_url
+           COALESCE(
+             MAX(NULLIF(cs.image_url, '')),
+             (ARRAY_REMOVE(ARRAY_AGG(NULLIF(p.image_url, '') ORDER BY p.available_now DESC), NULL))[1]
+           ) AS image_url
     FROM products p
     LEFT JOIN category_settings cs ON cs.category = p.category
     WHERE p.active AND p.discontinued_at IS NULL AND p.category <> ''

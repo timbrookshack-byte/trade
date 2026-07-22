@@ -91,8 +91,27 @@ export async function verifyCustomerLogin(
   const customer = rows[0];
   if (!customer) return null;
   if (!(await verifyPassword(password, customer.password_hash))) return null;
+  await context.db`UPDATE customers SET last_login_at = now() WHERE id = ${customer.id}`;
   const { password_hash: _discard, ...safe } = customer;
   return safe as Customer;
+}
+
+/** Create (or refresh) an invite/set-password token. Returns the URL path. */
+export async function createInviteToken(context: AppLoadContext, customerId: number) {
+  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  await context.db`
+    INSERT INTO password_resets (customer_id, token, expires_at)
+    VALUES (${customerId}, ${token}, now() + interval '14 days')
+  `;
+  return `/trade/set-password?token=${token}`;
+}
+
+export async function consumeInviteToken(context: AppLoadContext, token: string) {
+  const rows = await context.db<{ id: number; customer_id: number }[]>`
+    SELECT id, customer_id FROM password_resets
+    WHERE token = ${token} AND used_at IS NULL AND expires_at > now()
+  `;
+  return rows[0] ?? null;
 }
 
 export async function registerCustomer(

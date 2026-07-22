@@ -93,6 +93,9 @@ When the portal starts taking orders for 360-sourced products, 360 will expose:
   reserves/decrements 360 stock and returns `{ sale_number }`.
 - `POST /api/trade/orders/:sale_number/payments` — relay payments recorded in
   the portal so 360's ledger stays whole.
+- (requested) `POST /api/trade/customers` — upsert portal trade customers into
+  360's customer list (by email/ABN) so they exist as trade customers there.
+  Contract to be agreed in the 360 project before the portal push is built.
 
 **Until phase 2 exists**: portal orders for 360 products do NOT move 360 stock.
 Mitigate by (a) re-syncing stock frequently, (b) flagging low-stock lines for
@@ -121,6 +124,11 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   rides the same 15-min cron ("Sync bundles" button for manual runs).
 - Component SKUs in Shopify must match 360 SKUs — mismatches show on the
   bundle's admin edit page as "not found in portal catalogue".
+- **Description enrichment**: NON-bundle Shopify products are SKU-matched to
+  shack360 rows and their (richer) copy replaces the 360 description, with
+  `overrides.description = "shopify"` (360 sync skips it, Shopify sync keeps
+  it fresh). A manual admin edit sets `overrides.description = true` and
+  beats both syncs.
 
 ## Portal data model (its own Postgres)
 
@@ -172,9 +180,16 @@ value stores a jsonb string, not an array). The rules:
   row tick-boxes with bulk activate/deactivate/price-at-default on selection.
 - Categories (`category_settings` table, /admin/categories): rename raw 360
   categories for the storefront (`display_name`; same display name merges
-  tiles) and hide whole categories (`hidden`). Admin works in raw 360 names;
+  tiles), hide whole categories (`hidden`), set a custom tile image
+  (`image_url`; blank = best-stocked product's photo), and add manual
+  categories for portal-only products. Admin works in raw 360 names;
   ALL storefront queries must join category_settings (see store.server.ts).
-- Customers: approve registrations, set tiers/terms, view order history.
+- Customers: approve registrations, set tiers/terms, view order history;
+  sortable columns (business/applied/last login/last order); CSV import
+  (/admin/customers/import — Orderspace export compatible; imported rows are
+  approved with NO password) + per-customer invite links (`password_resets`
+  tokens → /trade/set-password, 14-day expiry, emailed when Resend is
+  configured). `customers.last_login_at` is stamped on every login.
 - Orders: list by status, order detail, record payments (incl. part-payments),
   status transitions, packing slip / invoice PDF (GST invoice — ABN, GST
   breakdown).

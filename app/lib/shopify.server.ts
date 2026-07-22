@@ -138,8 +138,17 @@ query BundleProducts($cursor: String, $pageSize: Int!) {
   }
 }`;
 
-async function fetchBundles(domain: string, token: string): Promise<ShopifyBundle[]> {
+interface ShopifyDescription {
+  sku: string;
+  description: string;
+}
+
+async function fetchBundles(
+  domain: string,
+  token: string,
+): Promise<{ bundles: ShopifyBundle[]; descriptions: ShopifyDescription[] }> {
   const bundles: ShopifyBundle[] = [];
+  const descriptions: ShopifyDescription[] = [];
   let cursor: string | null = null;
 
   for (let page = 0; page < 40; page++) {
@@ -175,7 +184,15 @@ async function fetchBundles(domain: string, token: string): Promise<ShopifyBundl
           quantity: Math.max(1, Math.trunc(Number(c?.quantity) || 1)),
         }))
         .filter((c: { sku: string }) => c.sku);
-      if (components.length === 0) continue; // not a bundle
+
+      if (components.length === 0) {
+        // Not a bundle — but its richer Shopify copy can enrich the matching
+        // 360-sourced product by SKU.
+        const plainSku = String(node.variants?.nodes?.[0]?.sku ?? "").trim();
+        const plainDesc = stripHtml(String(node.descriptionHtml ?? ""));
+        if (plainSku && plainDesc) descriptions.push({ sku: plainSku, description: plainDesc });
+        continue;
+      }
 
       const variant = node.variants?.nodes?.[0];
       const sku = String(variant?.sku ?? "").trim() || `SHOPIFY-${String(node.id).split("/").pop()}`;
@@ -194,7 +211,34 @@ async function fetchBundles(domain: string, token: string): Promise<ShopifyBundl
     if (!products.pageInfo.hasNextPage) break;
     cursor = products.pageInfo.endCursor;
   }
-  return bundles.filter((b) => b.name);
+  return { bundles: bundles.filter((b) => b.name), descriptions };
+}
+
+/**
+ * SKU-match Shopify copy onto 360-sourced products. Marks the field as
+ * overrides.description = "shopify" so the 360 sync stops touching it while
+ * this sync keeps it fresh; a manual admin edit (overrides.description =
+ * true) always wins and is never clobbered here.
+ */
+async function applyShopifyDescriptions(db: Sql, descriptions: ShopifyDescription[]) {
+  let updated = 0;
+  for (let i = 0; i < descriptions.length; i += 100) {
+    const chunk = descriptions.slice(i, i + 100).map((d) => [d.sku, d.description]);
+    const rows = await db<{ id: number }[]>`
+      UPDATE products p SET
+        description = d.description,
+        overrides = p.overrides || '{"description": "shopify"}'::jsonb,
+        updated_at = now()
+      FROM (VALUES ${db(chunk)}) AS d(sku, description)
+      WHERE p.source = 'shack360'
+        AND upper(p.sku) = upper(d.sku)
+        AND (NOT p.overrides ? 'description' OR p.overrides->>'description' = 'shopify')
+        AND p.description IS DISTINCT FROM d.description
+      RETURNING p.id
+    `;
+    updated += rows.length;
+  }
+  return updated;
 }
 
 export async function runShopifyBundleSync(
@@ -220,7 +264,10 @@ export async function runShopifyBundleSync(
   `;
 
   try {
-    const bundles = await fetchBundles(settings.shopify_domain, settings.shopify_admin_token);
+    const { bundles, descriptions } = await fetchBundles(
+      settings.shopify_domain,
+      settings.shopify_admin_token,
+    );
 
     let created = 0;
     let updated = 0;
@@ -274,13 +321,15 @@ export async function runShopifyBundleSync(
             RETURNING sku
           `;
 
+    const descriptionsApplied = await applyShopifyDescriptions(db, descriptions);
     await recomputeBundleStock(db);
 
     await db`
       UPDATE sync_runs SET
         finished_at = now(), status = 'success',
         products_in_feed = ${bundles.length},
-        created_count = ${created}, updated_count = ${updated},
+        created_count = ${created},
+        updated_count = ${updated + descriptionsApplied},
         discontinued_count = ${gone.length}
       WHERE id = ${run.id}
     `;
