@@ -1,48 +1,16 @@
-{
-<<<<<<< Updated upstream
+﻿{
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "trade-portal",
   "main": "./workers/app.ts",
   "compatibility_date": "2025-04-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // Portal's own Postgres via Hyperdrive. NEVER point this at Shack360's DB —
-  // 360 integration is API-only (see CLAUDE.md golden rules).
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      // Replace with the real Hyperdrive config id before first deploy:
-      //   wrangler hyperdrive create trade-portal-db --connection-string="postgresql://..."
-      "id": "REPLACE_WITH_HYPERDRIVE_ID",
+      "id": "8231328d194b467ba4dc00dc4a6c23f5",
       "localConnectionString": "postgresql://postgres:postgres@localhost:5432/trade_portal"
     }
   ],
-  // 360 stock sync. Fires every 15 minutes; the handler only syncs when
-  // settings.stock_sync_minutes (default 30) has elapsed since the last run.
   "triggers": { "crons": ["*/15 * * * *"] }
 }
-=======
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "trade-portal",
-	"main": "./workers/app.ts",
-	"compatibility_date": "2025-04-01",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	"observability": {
-		"enabled": true
-	},
-	// Portal's own Postgres via Hyperdrive. NEVER point this at Shack360's DB —
-	// 360 integration is API-only (see CLAUDE.md golden rules).
-	"hyperdrive": [
-		{
-			"binding": "HYPERDRIVE",
-			// Replace with the real Hyperdrive config id before first deploy:
-			//   wrangler hyperdrive create trade-portal-db --connection-string="postgresql://..."
-			"id": "8231328d194b467ba4dc00dc4a6c23f5",
-			"localConnectionString": "postgresql://postgres:postgres@localhost:5432/trade_portal"
-		}
-	]
-	// Milestone 2 will add: "triggers": { "crons": ["*/30 * * * *"] } for the 360 stock sync.
-}
->>>>>>> Stashed changes
