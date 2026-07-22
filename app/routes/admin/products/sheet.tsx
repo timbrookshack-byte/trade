@@ -37,7 +37,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     priceModeRaw === "rrp" || priceModeRaw === "none" ? priceModeRaw : "trade";
   // Strip whatever the chosen mode doesn't show — loader data is serialised
   // into the HTML, and sheets may be forwarded outside the business.
-  const scrubbed = products.map((p) => ({
+  const scrubbed = products.map((p: Product) => ({
     ...p,
     trade_price: priceMode === "trade" ? p.trade_price : null,
     rrp_reference: priceMode === "none" ? null : p.rrp_reference,
