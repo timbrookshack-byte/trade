@@ -22,6 +22,7 @@ export default [
     route("admin/products", "routes/admin/products/list.tsx"),
     route("admin/products/new", "routes/admin/products/new.tsx"),
     route("admin/products/:id", "routes/admin/products/edit.tsx"),
+    route("admin/categories", "routes/admin/categories.tsx"),
     route("admin/customers", "routes/admin/customers.tsx"),
     route("admin/settings", "routes/admin/settings.tsx"),
     route("admin/users", "routes/admin/users.tsx"),

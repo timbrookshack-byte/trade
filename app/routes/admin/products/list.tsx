@@ -82,6 +82,50 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const count = await activatePriced(context.db);
     return { bulkResult: `${count} priced product(s) activated — now live on the storefront.` };
   }
+
+  // Actions on ticked rows.
+  const ids = form
+    .getAll("ids")
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (intent === "selected-activate" || intent === "selected-deactivate" || intent === "selected-price-default") {
+    if (ids.length === 0) {
+      return { bulkResult: "No products ticked — tick some rows first." };
+    }
+    const db = context.db;
+    if (intent === "selected-deactivate") {
+      const rows = await db<{ id: number }[]>`
+        UPDATE products SET active = FALSE, updated_at = now()
+        WHERE id IN ${db(ids)} AND active RETURNING id
+      `;
+      return { bulkResult: `${rows.length} product(s) deactivated — hidden from the storefront.` };
+    }
+    if (intent === "selected-activate") {
+      const rows = await db<{ id: number }[]>`
+        UPDATE products SET active = TRUE, updated_at = now()
+        WHERE id IN ${db(ids)} AND NOT active
+          AND trade_price IS NOT NULL AND discontinued_at IS NULL
+        RETURNING id
+      `;
+      const skipped = ids.length - rows.length;
+      return {
+        bulkResult: `${rows.length} product(s) activated.${
+          skipped > 0 ? ` ${skipped} skipped (no trade price, discontinued, or already active).` : ""
+        }`,
+      };
+    }
+    const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+    const rows = await db<{ id: number }[]>`
+      UPDATE products
+      SET trade_price = round(rrp_reference * ${1 - discount / 100}, 2), updated_at = now()
+      WHERE id IN ${db(ids)} AND source = 'shack360'
+        AND trade_price IS NULL AND rrp_reference IS NOT NULL
+      RETURNING id
+    `;
+    return {
+      bulkResult: `Default pricing applied to ${rows.length} of ${ids.length} ticked (already-priced or portal products are untouched).`,
+    };
+  }
   return null;
 }
 
@@ -214,11 +258,39 @@ export default function ProductsList() {
         </Form>
       </div>
 
+      <Form method="post">
       <Card>
         <CardContent className="pt-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">With ticked rows:</p>
+            <Button type="submit" name="intent" value="selected-activate" variant="outline" size="sm">
+              Activate
+            </Button>
+            <Button type="submit" name="intent" value="selected-deactivate" variant="outline" size="sm">
+              Deactivate
+            </Button>
+            <Button type="submit" name="intent" value="selected-price-default" variant="outline" size="sm">
+              Price at default (unpriced only)
+            </Button>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    className="size-4 accent-primary"
+                    onChange={(e) => {
+                      const checked = e.currentTarget.checked;
+                      e.currentTarget.form
+                        ?.querySelectorAll<HTMLInputElement>('input[name="ids"]')
+                        .forEach((el) => {
+                          el.checked = checked;
+                        });
+                    }}
+                  />
+                </TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Category</TableHead>
@@ -231,13 +303,22 @@ export default function ProductsList() {
             <TableBody>
               {products.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     No products match. {filter === "all" && "Run a sync to pull the 360 catalogue."}
                   </TableCell>
                 </TableRow>
               )}
               {products.map((p: Product) => (
                 <TableRow key={p.id}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      name="ids"
+                      value={p.id}
+                      aria-label={`Select ${p.sku}`}
+                      className="size-4 accent-primary"
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                   <TableCell className="max-w-md">
                     <Link
@@ -284,6 +365,7 @@ export default function ProductsList() {
           </Table>
         </CardContent>
       </Card>
+      </Form>
     </div>
   );
 }

@@ -144,7 +144,12 @@ value stores a jsonb string, not an array). The rules:
 
 - Dashboard: today's orders, low stock on active lines, pending registrations.
 - Products: list/search; edit trade price + portal copy; activate/deactivate;
-  add portal-only products; "New from 360" review queue; sync status + button.
+  add portal-only products; "New from 360" review queue; sync status + button;
+  row tick-boxes with bulk activate/deactivate/price-at-default on selection.
+- Categories (`category_settings` table, /admin/categories): rename raw 360
+  categories for the storefront (`display_name`; same display name merges
+  tiles) and hide whole categories (`hidden`). Admin works in raw 360 names;
+  ALL storefront queries must join category_settings (see store.server.ts).
 - Customers: approve registrations, set tiers/terms, view order history.
 - Orders: list by status, order detail, record payments (incl. part-payments),
   status transitions, packing slip / invoice PDF (GST invoice — ABN, GST

@@ -9,15 +9,21 @@ export interface CategoryTile {
   image_url: string | null;
 }
 
+// The storefront works in DISPLAY category names: raw 360 categories are
+// mapped through category_settings (rename via display_name, hide via
+// hidden). Admin screens keep working in raw 360 names.
+
 export async function listCategories(context: AppLoadContext): Promise<CategoryTile[]> {
   return context.db<CategoryTile[]>`
-    SELECT category,
+    SELECT COALESCE(NULLIF(cs.display_name, ''), p.category) AS category,
            count(*) AS product_count,
-           (ARRAY_REMOVE(ARRAY_AGG(NULLIF(image_url, '') ORDER BY available_now DESC), NULL))[1] AS image_url
-    FROM products
-    WHERE active AND discontinued_at IS NULL AND category <> ''
-    GROUP BY category
-    ORDER BY category
+           (ARRAY_REMOVE(ARRAY_AGG(NULLIF(p.image_url, '') ORDER BY p.available_now DESC), NULL))[1] AS image_url
+    FROM products p
+    LEFT JOIN category_settings cs ON cs.category = p.category
+    WHERE p.active AND p.discontinued_at IS NULL AND p.category <> ''
+      AND COALESCE(cs.hidden, FALSE) = FALSE
+    GROUP BY 1
+    ORDER BY 1
   `;
 }
 
@@ -28,19 +34,27 @@ export async function listStoreProducts(
   const category = opts.category?.trim() || null;
   const term = opts.search?.trim() ? `%${opts.search.trim()}%` : null;
   return context.db<Product[]>`
-    SELECT * FROM products
-    WHERE active AND discontinued_at IS NULL
-      AND (${category}::text IS NULL OR category = ${category})
-      AND (${term}::text IS NULL OR name ILIKE ${term} OR sku ILIKE ${term} OR category ILIKE ${term})
-    ORDER BY category, name
+    SELECT p.*, COALESCE(NULLIF(cs.display_name, ''), p.category) AS category
+    FROM products p
+    LEFT JOIN category_settings cs ON cs.category = p.category
+    WHERE p.active AND p.discontinued_at IS NULL
+      AND COALESCE(cs.hidden, FALSE) = FALSE
+      AND (${category}::text IS NULL
+           OR COALESCE(NULLIF(cs.display_name, ''), p.category) = ${category})
+      AND (${term}::text IS NULL OR p.name ILIKE ${term} OR p.sku ILIKE ${term}
+           OR COALESCE(NULLIF(cs.display_name, ''), p.category) ILIKE ${term})
+    ORDER BY COALESCE(NULLIF(cs.display_name, ''), p.category), p.name
     LIMIT 1000
   `;
 }
 
 export async function getStoreProduct(context: AppLoadContext, sku: string) {
   const rows = await context.db<Product[]>`
-    SELECT * FROM products
-    WHERE upper(sku) = upper(${sku}) AND active AND discontinued_at IS NULL
+    SELECT p.*, COALESCE(NULLIF(cs.display_name, ''), p.category) AS category
+    FROM products p
+    LEFT JOIN category_settings cs ON cs.category = p.category
+    WHERE upper(p.sku) = upper(${sku}) AND p.active AND p.discontinued_at IS NULL
+      AND COALESCE(cs.hidden, FALSE) = FALSE
   `;
   return rows[0] ?? null;
 }
