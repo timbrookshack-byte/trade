@@ -281,7 +281,7 @@ export async function runShopifyBundleSync(
         ON CONFLICT (sku) DO UPDATE SET
           name = CASE WHEN products.overrides ? 'name' THEN products.name ELSE EXCLUDED.name END,
           description = CASE WHEN products.overrides ? 'description' THEN products.description ELSE EXCLUDED.description END,
-          category = EXCLUDED.category,
+          category = CASE WHEN products.overrides ? 'category' THEN products.category ELSE EXCLUDED.category END,
           image_url = EXCLUDED.image_url,
           rrp_reference = EXCLUDED.rrp_reference,
           stock_synced_at = EXCLUDED.stock_synced_at,

@@ -84,16 +84,26 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
   if (product.source !== "portal") {
     // Copy edits on a synced product become overrides so the sync stops
-    // touching those fields. Unchanged fields keep following 360.
+    // touching those fields. Unchanged fields keep following the source.
     const overrides = { ...product.overrides };
     if (name !== product.name) overrides.name = true;
     if (description !== product.description) overrides.description = true;
+    // Bundles may recategorise locally; 360 products keep their 360 category.
+    let category = product.category;
+    if (product.source === "shopify") {
+      const submitted = String(form.get("category") ?? "").trim();
+      if (submitted && submitted !== product.category) {
+        category = submitted;
+        overrides.category = true;
+      }
+    }
     await db`
       UPDATE products SET
         trade_price = ${tradePrice},
         active = ${active},
         name = ${name},
         description = ${description},
+        category = ${category},
         overrides = ${db.json(overrides)},
         updated_at = now()
       WHERE id = ${id}
@@ -314,6 +324,19 @@ export default function EditProduct() {
               </div>
             )}
 
+            {isBundle && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="category">
+                  Category
+                  {product.overrides.category && (
+                    <span className="ml-2 font-normal text-muted-foreground">
+                      (edited locally — no longer follows Shopify)
+                    </span>
+                  )}
+                </Label>
+                <Input id="category" name="category" defaultValue={product.category} />
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">
                 Name
