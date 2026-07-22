@@ -154,13 +154,21 @@ export default function EditProduct() {
             )}
           </div>
         </div>
-        {product.image_url && (
-          <img
-            src={product.image_url}
-            alt=""
-            className="h-24 w-24 rounded-md border border-border object-cover"
-          />
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {product.image_url && (
+            <img
+              src={product.image_url}
+              alt=""
+              className="h-24 w-24 rounded-md border border-border object-cover"
+            />
+          )}
+          <Link
+            to={`/admin/products/sheet?ids=${product.id}`}
+            className="text-sm underline underline-offset-4"
+          >
+            Product sheet
+          </Link>
+        </div>
       </div>
 
       {actionData && "error" in actionData && actionData.error && (

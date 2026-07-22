@@ -11,6 +11,9 @@ export default [
   ]),
   route("trade/logout", "routes/store/logout.tsx"),
 
+  // Product sheet (print/PDF view — standalone, no admin shell)
+  route("admin/products/sheet", "routes/admin/products/sheet.tsx"),
+
   // Shopify OAuth (no UI shell; auth enforced in the loaders)
   route("admin/shopify/connect", "routes/admin/shopify-connect.tsx"),
   route("admin/shopify/callback", "routes/admin/shopify-callback.tsx"),

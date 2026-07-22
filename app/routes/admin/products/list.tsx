@@ -1,6 +1,7 @@
 import {
   Form,
   Link,
+  redirect,
   useActionData,
   useLoaderData,
   useNavigation,
@@ -93,9 +94,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
     .getAll("ids")
     .map(Number)
     .filter((n) => Number.isInteger(n) && n > 0);
-  if (intent === "selected-activate" || intent === "selected-deactivate" || intent === "selected-price-default") {
+  if (
+    intent === "selected-activate" ||
+    intent === "selected-deactivate" ||
+    intent === "selected-price-default" ||
+    intent === "selected-sheet"
+  ) {
     if (ids.length === 0) {
       return { bulkResult: "No products ticked — tick some rows first." };
+    }
+    if (intent === "selected-sheet") {
+      throw redirect(`/admin/products/sheet?ids=${ids.join(",")}`);
     }
     const db = context.db;
     if (intent === "selected-deactivate") {
@@ -282,6 +291,9 @@ export default function ProductsList() {
             </Button>
             <Button type="submit" name="intent" value="selected-price-default" variant="outline" size="sm">
               Price at default (unpriced only)
+            </Button>
+            <Button type="submit" name="intent" value="selected-sheet" variant="outline" size="sm">
+              Product sheet
             </Button>
           </div>
           <Table>
