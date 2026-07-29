@@ -21,6 +21,8 @@ export async function createOrder(
     customer_email?: string;
     customer_phone?: string;
     delivery_address?: string;
+    delivery_method?: string;
+    urgent_date?: string | null;
     note?: string;
     created_by_user_id?: number | null;
     lines: { product_id: number | null; sku: string; name: string; quantity: number; unit_price_inc_gst: number }[];
@@ -28,10 +30,12 @@ export async function createOrder(
 ) {
   const [order] = await db<{ id: number }[]>`
     INSERT INTO orders (status, customer_id, business_name, customer_name, customer_email,
-                        customer_phone, delivery_address, note, created_by_user_id, submitted_at)
+                        customer_phone, delivery_address, delivery_method, urgent_date, note,
+                        created_by_user_id, submitted_at)
     VALUES (${input.status}, ${input.customer_id ?? null}, ${input.business_name ?? ""},
             ${input.customer_name ?? ""}, ${input.customer_email ?? ""},
-            ${input.customer_phone ?? ""}, ${input.delivery_address ?? ""}, ${input.note ?? ""},
+            ${input.customer_phone ?? ""}, ${input.delivery_address ?? ""},
+            ${input.delivery_method ?? ""}, ${input.urgent_date ?? null}, ${input.note ?? ""},
             ${input.created_by_user_id ?? null},
             ${input.status === "submitted" ? new Date() : null})
     RETURNING id

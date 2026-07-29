@@ -10,7 +10,7 @@ import {
 } from "react-router";
 import { getCustomer } from "~/lib/customer-auth.server";
 import { getOrder } from "~/lib/orders.server";
-import { STATUS_LABELS } from "~/lib/orders";
+import { deliveryMethodLabel, STATUS_LABELS } from "~/lib/orders";
 import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
 import { exGst, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
@@ -120,12 +120,20 @@ export default function CustomerOrder() {
         </CardContent>
       </Card>
 
-      {order.delivery_address && (
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Delivery:</span>{" "}
-          {order.delivery_address}
-        </p>
-      )}
+      <div className="space-y-1 text-sm text-muted-foreground">
+        {order.delivery_method && (
+          <p>
+            <span className="font-medium text-foreground">Delivery option:</span>{" "}
+            {deliveryMethodLabel(order.delivery_method)} (cost TBA — confirmed on your invoice)
+          </p>
+        )}
+        {order.delivery_address && (
+          <p>
+            <span className="font-medium text-foreground">Delivery:</span>{" "}
+            {order.delivery_address}
+          </p>
+        )}
+      </div>
 
       <Form method="post">
         <Button type="submit" variant="outline" disabled={navigation.state !== "idle"}>

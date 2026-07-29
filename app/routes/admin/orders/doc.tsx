@@ -1,7 +1,7 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import { getOrder } from "~/lib/orders.server";
-import type { OrderItem, Payment } from "~/lib/orders";
+import { deliveryMethodLabel, type OrderItem, type Payment } from "~/lib/orders";
 import { getSettings } from "~/lib/settings.server";
 import { exGst, formatCurrency, formatDate } from "~/lib/utils";
 
@@ -117,6 +117,12 @@ export default function OrderDoc() {
             </>
           )}
           {order.delivery_address && <p className="whitespace-pre-line">{order.delivery_address}</p>}
+          {order.delivery_method && (
+            <p className="mt-1 font-medium">{deliveryMethodLabel(order.delivery_method)}</p>
+          )}
+          {order.urgent_date && (
+            <p className="font-bold">URGENT — required by {formatDate(order.urgent_date)}</p>
+          )}
         </div>
         {order.note && (
           <div>

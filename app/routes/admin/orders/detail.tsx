@@ -10,6 +10,8 @@ import {
 import { requireUser } from "~/lib/auth.server";
 import { getOrder, refreshOrderTotal } from "~/lib/orders.server";
 import {
+  DELIVERY_METHODS,
+  deliveryMethodLabel,
   NEXT_STATUSES,
   STATUS_LABELS,
   type OrderItem,
@@ -137,6 +139,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         customer_email = ${String(form.get("customer_email") ?? "").trim()},
         customer_phone = ${String(form.get("customer_phone") ?? "").trim()},
         delivery_address = ${String(form.get("delivery_address") ?? "").trim()},
+        delivery_method = ${DELIVERY_METHODS.some((m) => m.value === form.get("delivery_method")) ? String(form.get("delivery_method")) : ""},
+        urgent_date = ${/^\d{4}-\d{2}-\d{2}$/.test(String(form.get("urgent_date") ?? "")) ? String(form.get("urgent_date")) : null},
         note = ${String(form.get("note") ?? "").trim()},
         updated_at = now()
       WHERE id = ${id}
@@ -317,7 +321,31 @@ export default function OrderDetail() {
                 <Input name="customer_name" placeholder="Contact name" defaultValue={order.customer_name} />
                 <Input name="customer_email" placeholder="Email" defaultValue={order.customer_email} />
                 <Input name="customer_phone" placeholder="Phone" defaultValue={order.customer_phone} />
+                <select
+                  name="delivery_method"
+                  defaultValue={order.delivery_method || ""}
+                  className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+                >
+                  <option value="">Delivery option TBA…</option>
+                  {DELIVERY_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
                 <Textarea name="delivery_address" placeholder="Delivery address" rows={2} defaultValue={order.delivery_address} />
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="q-urgent" className="text-xs text-muted-foreground">
+                    Urgent — required by
+                  </Label>
+                  <input
+                    id="q-urgent"
+                    name="urgent_date"
+                    type="date"
+                    defaultValue={order.urgent_date ?? ""}
+                    className="h-9 rounded-md border border-input bg-card px-3 text-sm"
+                  />
+                </div>
                 <Textarea name="note" placeholder="Note" rows={2} defaultValue={order.note} />
                 <Button type="submit" variant="secondary" size="sm" disabled={busy}>
                   Save details
@@ -329,8 +357,16 @@ export default function OrderDetail() {
                 <p>{order.customer_name}</p>
                 <p>{order.customer_email}</p>
                 <p>{order.customer_phone}</p>
+                {order.delivery_method && (
+                  <p className="pt-2 font-medium">{deliveryMethodLabel(order.delivery_method)}</p>
+                )}
+                {order.urgent_date && (
+                  <p className="font-medium text-destructive">
+                    ⚠ Urgent — required by {formatDate(order.urgent_date)}
+                  </p>
+                )}
                 {order.delivery_address && (
-                  <p className="pt-2">
+                  <p>
                     <span className="text-muted-foreground">Delivery:</span>{" "}
                     {order.delivery_address}
                   </p>

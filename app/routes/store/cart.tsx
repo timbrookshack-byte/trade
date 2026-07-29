@@ -11,6 +11,7 @@ import {
 import { getCustomer } from "~/lib/customer-auth.server";
 import { readCart, serializeCart, type CartLine } from "~/lib/cart.server";
 import { createOrder } from "~/lib/orders.server";
+import { DELIVERY_METHODS, needsDeliveryAddress } from "~/lib/orders";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
 import type { Product } from "~/lib/products";
 import { exGst, formatCurrency } from "~/lib/utils";
@@ -84,8 +85,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
     const lines = await loadCartLines(context, request);
     if (lines.length === 0) return { error: "Your cart is empty." };
+    const deliveryMethodRaw = String(form.get("delivery_method") ?? "");
+    const deliveryMethod = DELIVERY_METHODS.find((m) => m.value === deliveryMethodRaw)?.value;
+    if (!deliveryMethod) return { error: "Please choose a delivery option." };
     const deliveryAddress = String(form.get("delivery_address") ?? "").trim();
-    if (!deliveryAddress) return { error: "Please enter a delivery address." };
+    if (needsDeliveryAddress(deliveryMethod) && !deliveryAddress) {
+      return { error: "Please enter a delivery address for that delivery option." };
+    }
+    const urgentRaw = String(form.get("urgent_date") ?? "").trim();
+    const urgentDate = /^\d{4}-\d{2}-\d{2}$/.test(urgentRaw) ? urgentRaw : null;
 
     const orderId = await createOrder(context.db, {
       status: "submitted",
@@ -95,6 +103,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
       customer_email: customer.email,
       customer_phone: customer.phone,
       delivery_address: deliveryAddress,
+      delivery_method: deliveryMethod,
+      urgent_date: urgentDate,
       note: String(form.get("note") ?? "").trim(),
       lines: lines.map((l) => ({
         product_id: l.product.id,
@@ -222,13 +232,51 @@ export default function CartPage() {
                 <Form method="post" className="flex flex-col gap-4">
                   <input type="hidden" name="intent" value="submit" />
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="delivery_address">Delivery address</Label>
+                    <Label htmlFor="delivery_method">Delivery option</Label>
+                    <select
+                      id="delivery_method"
+                      name="delivery_method"
+                      required
+                      defaultValue=""
+                      className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+                    >
+                      <option value="" disabled>
+                        Choose delivery or collection…
+                      </option>
+                      {DELIVERY_METHODS.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Delivery cost TBA — the trade team confirms freight with your invoice.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="delivery_address">
+                      Delivery address{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (not needed for collection / own freight)
+                      </span>
+                    </Label>
                     <Textarea
                       id="delivery_address"
                       name="delivery_address"
-                      required
                       rows={2}
                       defaultValue={address}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="urgent_date">
+                      Urgent — required by{" "}
+                      <span className="font-normal text-muted-foreground">(optional)</span>
+                    </Label>
+                    <input
+                      id="urgent_date"
+                      name="urgent_date"
+                      type="date"
+                      className="h-10 w-48 rounded-md border border-input bg-card px-3 text-sm"
                     />
                   </div>
                   <div className="flex flex-col gap-2">
