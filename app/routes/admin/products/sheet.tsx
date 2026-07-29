@@ -154,9 +154,9 @@ export default function ProductSheet() {
                 <div className="mt-auto pt-2">
                   {priceMode === "trade" && trade != null && (
                     <p className="text-xl font-bold">
-                      {formatCurrency(trade)}{" "}
+                      {formatCurrency(exGst(trade))}{" "}
                       <span className="text-sm font-normal text-neutral-500">
-                        inc GST ({formatCurrency(exGst(trade))} ex GST)
+                        ex GST ({formatCurrency(trade)} inc GST)
                       </span>
                       {rrp != null && (
                         <span className="ml-3 text-sm font-normal text-neutral-500">

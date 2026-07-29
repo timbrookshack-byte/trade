@@ -98,10 +98,10 @@ export default function CustomerOrder() {
                 <p className="font-mono text-xs text-muted-foreground">{item.sku}</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                {item.quantity} × {formatCurrency(item.unit)}
+                {item.quantity} × {formatCurrency(exGst(item.unit))} ex GST
               </p>
               <p className="w-24 text-right font-semibold">
-                {formatCurrency(item.quantity * item.unit)}
+                {formatCurrency(exGst(item.quantity * item.unit))}
               </p>
             </div>
           ))}

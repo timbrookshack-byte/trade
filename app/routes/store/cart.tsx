@@ -183,7 +183,7 @@ export default function CartPage() {
                     <p className="font-mono text-xs text-muted-foreground">{line.sku}</p>
                     {line.unit != null && (
                       <p className="text-sm text-muted-foreground">
-                        {formatCurrency(line.unit)} inc GST each
+                        {formatCurrency(exGst(line.unit))} ex GST each
                       </p>
                     )}
                   </div>
@@ -204,7 +204,8 @@ export default function CartPage() {
                   </Form>
                   {line.unit != null && (
                     <p className="w-24 text-right font-semibold">
-                      {formatCurrency(line.unit * line.qty)}
+                      {formatCurrency(exGst(line.unit * line.qty))}
+                      <span className="block text-xs font-normal text-muted-foreground">ex GST</span>
                     </p>
                   )}
                 </div>

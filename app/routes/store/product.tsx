@@ -110,11 +110,11 @@ export default function StoreProduct() {
               {price != null ? (
                 <>
                   <p className="text-3xl font-bold">
-                    {formatCurrency(price)}
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">inc GST</span>
+                    {formatCurrency(exGst(price))}
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">ex GST</span>
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrency(exGst(price))} ex GST
+                    {formatCurrency(price)} inc GST
                     {product.rrp_reference != null && (
                       <> · RRP {formatCurrency(Number(product.rrp_reference))}</>
                     )}

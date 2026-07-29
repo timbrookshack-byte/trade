@@ -3,7 +3,7 @@ import { listCategories, listStoreProducts, scrubProductForPublic } from "~/lib/
 import { getCustomer } from "~/lib/customer-auth.server";
 import { stockStatus } from "~/lib/stock";
 import type { Product } from "~/lib/products";
-import { cn, formatCurrency } from "~/lib/utils";
+import { cn, exGst, formatCurrency } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 
@@ -148,9 +148,9 @@ export default function StoreProducts() {
                       <div>
                         {p.trade_price != null && (
                           <p className="font-semibold">
-                            {formatCurrency(Number(p.trade_price))}
+                            {formatCurrency(exGst(Number(p.trade_price)))}
                             <span className="ml-1 text-xs font-normal text-muted-foreground">
-                              inc GST
+                              ex GST
                             </span>
                           </p>
                         )}

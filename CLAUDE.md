@@ -214,7 +214,10 @@ registration received/approved. Domain-verified sender.
 
 - **GST: all prices are stored inc-GST; ex-GST is derived for display**
   (`ex = inc / 1.1`). This is the documented choice — do not store ex-GST.
-  Invoices show GST correctly.
+  Invoices show GST correctly. **Customer-facing display leads with ex-GST**
+  (trade convention): gallery cards, product detail, cart lines, order pages
+  and product sheets show ex first with inc secondary; totals boxes and tax
+  documents always show the full ex/GST/inc breakdown.
 - Trade prices and the feed token are never in client-side JS. Anything
   touching the DB or secrets lives in `*.server.ts` modules.
 - Australian formats: DD/MM/YYYY, AUD, phone formats.
