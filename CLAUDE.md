@@ -83,25 +83,61 @@ Notes:
 - The token lives in 360's `settings.trade_api_token`. Treat it as a secret:
   server-side fetch only, never expose to the browser.
 
-### Phase-2 contract (SPEC — to be built on 360 when the portal needs it)
+### Phase-2 orders contract (AGREED 2026-07 — portal side ✅ built, 360 side to build)
 
-When the portal starts taking orders for 360-sourced products, 360 will expose:
+**The flow (Tim's decision): 360 masters the order once pushed.** A portal
+order lands in 360 as an *unconfirmed quote*; the trade team edits/confirms it
+IN 360; the portal mirrors 360's version back (lines, prices, freight, status)
+so the customer's order page and invoice always show the corrected truth.
 
-- `POST /api/trade/orders` — body: customer {name, email, phone, address},
-  lines [{sku, qty, unit_price_inc_gst}], portal_order_ref. Creates a sale in
-  360's **Trade / Commercial branch** (source-tagged `trade_portal`), which
-  reserves/decrements 360 stock and returns `{ sale_number }`.
-- `POST /api/trade/orders/:sale_number/payments` — relay payments recorded in
-  the portal so 360's ledger stays whole.
-- (requested) `POST /api/trade/customers` — upsert portal trade customers into
-  360's customer list (by email/ABN) so they exist as trade customers there.
-  Contract to be agreed in the 360 project before the portal push is built.
+Lifecycle: portal `submitted` → pushed → 360 quote → team confirms in 360 →
+portal pulls → portal `confirmed` (+ email w/ payment options) → 360
+dispatch/complete flows through the same mirror. Auth for all endpoints: same
+`trade_api_token` (Bearer or `?token=`), server-side only.
 
-**Until phase 2 exists**: portal orders for 360 products do NOT move 360 stock.
-Mitigate by (a) re-syncing stock frequently, (b) flagging low-stock lines for
-manual confirmation, and (c) the trade team keying large orders into 360
-manually (they do this today with Shopify orders). Build phase 1 fully working
-this way; the ordering API slots in later without redesign.
+360 must expose (portal client already built in `three60-orders.server.ts`):
+
+1. `POST /api/trade/orders` — body:
+   ```json
+   { "portal_order_ref": "TP-1005",
+     "customer": { "business_name", "contact_name", "email", "phone",
+                   "delivery_method", "delivery_address", "urgent_date" },
+     "note": "…",
+     "lines": [ { "sku": "SDS23991UDCT", "name": "…", "qty": 2,
+                  "unit_price_inc_gst": 186.88,
+                  "components": [ { "sku": "…", "qty": 1 } ] } ] }
+   ```
+   Creates an **unconfirmed quote** in the Trade/Commercial branch,
+   source-tagged `trade_portal`. NO stock movement at this stage (stock
+   reserves when the team confirms the sale in 360, per 360's normal rules).
+   Unknown SKUs (portal-only products / Shopify bundles) become free-text
+   lines; bundle lines carry `components` so the team can explode them.
+   **Idempotent on portal_order_ref** — a retry returns the existing sale.
+   Returns `{ "sale_number": "…" }`.
+2. `GET /api/trade/orders/:sale_number` — the mirror source. Returns:
+   ```json
+   { "sale_number": "…", "portal_order_ref": "TP-1005",
+     "status": "quote|confirmed|dispatched|completed|cancelled",
+     "lines": [ { "sku": "", "name": "Freight — Brisbane", "qty": 1,
+                  "unit_price_inc_gst": 150 } ],
+     "total_inc_gst": 4000.88, "updated_at": "…" }
+   ```
+   `lines` is the FULL current sale (edits, freight and fees included —
+   freight is just a line with an empty/none sku). The portal polls this on
+   its 15-min cron for open pushed orders + a "Refresh from 360" button.
+3. `POST /api/trade/orders/:sale_number/payments` — body
+   `{ amount, method, reference, paid_at, portal_order_ref }`: relay of a
+   payment recorded in the portal, so 360's ledger stays whole.
+- (still requested, separate) `POST /api/trade/customers` — upsert portal
+  trade customers into 360 (by email/ABN). Contract to be agreed later.
+
+Portal behaviour (all ✅ built, gated by settings `orders_360_enabled='true'`):
+push on order submit (cron retries failures); mirror overwrites portal lines
++ status wholesale (portal never edits a pushed order's lines locally);
+confirmed/dispatched emails fire on mirrored transitions exactly as on manual
+ones; payments recorded in admin relay to 360 (fire-and-forget, cron-safe).
+**Until 360 ships + the flag is on**: orders behave as phase 1 (no 360 touch,
+team keys sales into 360 manually).
 
 ## Shopify bundle sync (✅ built)
 
@@ -251,8 +287,11 @@ registration received/approved. Domain-verified sender.
    registration received/approved, order submitted (customer + team),
    confirmed, dispatched — settings resend_api_key (secret), email_from,
    email_notify; emails no-op silently when unconfigured)**
-6. Phase 2: 360 orders API integration (coordinate with the 360 side — the
-   contract above is the starting point; confirm before building).
+6. Phase 2: 360 orders API integration. **(portal side ✅ built & tested
+   against a mock — push on submit/convert, cron retry + mirror, Refresh
+   button, payment relay, settings flag `orders_360_enabled` (default off).
+   Waiting on the 360 project to build the three endpoints in the contract
+   above, then flip the flag in Settings.)**
 
 ---
 

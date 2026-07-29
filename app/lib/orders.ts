@@ -46,6 +46,9 @@ export interface Order {
   note: string;
   total_inc_gst: string;
   sale_number_360: string | null;
+  pushed_to_360_at: string | null;
+  synced_360_at: string | null;
+  sync_360_error: string | null;
   created_by_user_id: number | null;
   submitted_at: string | null;
   created_at: string;

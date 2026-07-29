@@ -14,6 +14,7 @@ import { createOrder } from "~/lib/orders.server";
 import { DELIVERY_METHODS, needsDeliveryAddress } from "~/lib/orders";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { getPaymentInfo } from "~/lib/payment.server";
+import { pushOrderTo360 } from "~/lib/three60-orders.server";
 import type { Product } from "~/lib/products";
 import { exGst, formatCurrency } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -119,6 +120,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
       SELECT order_number, total_inc_gst FROM orders WHERE id = ${orderId}
     `;
     const total = formatCurrency(Number(order.total_inc_gst));
+    // Phase 2: land the order in 360 as an unconfirmed quote (no-op until the
+    // integration flag is on). Awaited — a failure is recorded on the order
+    // and the cron retries; the customer's submit never breaks either way.
+    const push = await pushOrderTo360(context.db, orderId);
+    if (!push.ok) console.log("360 order push:", push.error);
     const payment = await getPaymentInfo(context);
     queueEmail(context, {
       to: [customer.email],

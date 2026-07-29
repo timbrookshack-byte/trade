@@ -87,6 +87,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const discountRaw = Number(String(form.get("trade_discount_percent") ?? "").trim());
     const entries: Record<string, string> = {
       trade_api_url: String(form.get("trade_api_url") ?? "").trim(),
+      orders_360_enabled: form.get("orders_360_enabled") === "on" ? "true" : "false",
       stock_sync_minutes: String(form.get("stock_sync_minutes") ?? "30").trim(),
       trade_discount_percent:
         Number.isFinite(discountRaw) && discountRaw > 0 && discountRaw < 100
@@ -343,6 +344,23 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Used by "price at default" on the Products page: trade price inc GST = RRP −
                 this %, ex GST = inc ÷ 1.1 (e.g. $299 RRP → $186.88 inc / $169.89 ex).
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  name="orders_360_enabled"
+                  defaultChecked={settings.orders_360_enabled === "true"}
+                  className="size-4 accent-primary"
+                />
+                Push orders to 360 (phase 2)
+              </label>
+              <p className="text-xs text-muted-foreground">
+                When on, submitted orders land in 360 as unconfirmed quotes; the team edits
+                and confirms them in 360 and the portal mirrors the result back (lines,
+                freight, status). Leave off until 360's orders API is live — orders then
+                behave exactly as today.
               </p>
             </div>
             <div className="flex flex-col gap-2">

@@ -20,6 +20,12 @@ import {
 } from "~/lib/orders";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
 import { getPaymentInfo } from "~/lib/payment.server";
+import {
+  get360OrdersConfig,
+  pullOrderFrom360,
+  pushOrderTo360,
+  relayPaymentTo360,
+} from "~/lib/three60-orders.server";
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
@@ -44,7 +50,8 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!Number.isInteger(id)) throw new Response("Not found", { status: 404 });
   const data = await getOrder(context.db, id);
   if (!data) throw new Response("Not found", { status: 404 });
-  return data;
+  const orders360 = (await get360OrdersConfig(context.db)).enabled;
+  return { ...data, orders360 };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -57,6 +64,16 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
+  if (intent === "sync360") {
+    const result = await pullOrderFrom360(context, id);
+    if (!result.ok) return { error: `Refresh from 360 failed: ${result.error}` };
+    return {
+      ok: result.changed
+        ? "Refreshed from 360 — lines/status updated."
+        : "Refreshed from 360 — already up to date.",
+    };
+  }
+
   if (intent === "status") {
     const next = String(form.get("status") ?? "") as OrderStatus;
     if (!NEXT_STATUSES[order.status]?.includes(next)) {
@@ -68,6 +85,11 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         updated_at = now()
       WHERE id = ${id}
     `;
+    // A quote converted to an order heads to 360 like a customer submission.
+    if (next === "submitted") {
+      const push = await pushOrderTo360(db, id);
+      if (!push.ok) console.log("360 order push:", push.error);
+    }
     if (order.customer_email && (next === "confirmed" || next === "dispatched")) {
       const template =
         next === "confirmed"
@@ -91,10 +113,13 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     }
     const methodRaw = String(form.get("method") ?? "eft");
     const method = ["eft", "card", "cash", "other"].includes(methodRaw) ? methodRaw : "eft";
+    const reference = String(form.get("reference") ?? "").trim();
     await db`
       INSERT INTO payments (order_id, method, amount, reference, created_by_user_id)
-      VALUES (${id}, ${method}, ${amount}, ${String(form.get("reference") ?? "").trim()}, ${user.id})
+      VALUES (${id}, ${method}, ${amount}, ${reference}, ${user.id})
     `;
+    // Keep 360's ledger whole (no-op when the order isn't linked/enabled).
+    await relayPaymentTo360(context, order, { amount, method, reference });
     return { ok: `Payment of ${formatCurrency(amount)} recorded.` };
   }
 
@@ -156,7 +181,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function OrderDetail() {
-  const { order, items, payments, paid, balance } = useLoaderData<typeof loader>();
+  const { order, items, payments, paid, balance, orders360 } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -179,6 +204,9 @@ export default function OrderDetail() {
           </h1>
           <div className="mt-1 flex items-center gap-2">
             <Badge>{STATUS_LABELS[order.status]}</Badge>
+            {order.sale_number_360 && (
+              <Badge variant="outline">360 · {order.sale_number_360}</Badge>
+            )}
             <span className="text-sm text-muted-foreground">
               created {formatDateTime(order.created_at)}
             </span>
@@ -230,6 +258,31 @@ export default function OrderDetail() {
       )}
       {actionData && "error" in actionData && actionData.error && (
         <Alert variant="destructive">{actionData.error}</Alert>
+      )}
+
+      {order.sale_number_360 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted px-4 py-3 text-sm">
+          <p className="min-w-0 flex-1">
+            <span className="font-medium">Managed in 360</span> — sale{" "}
+            <span className="font-mono">{order.sale_number_360}</span>. Edit and confirm the
+            sale in 360; the portal mirrors lines, freight and status back automatically
+            {order.synced_360_at && <> (last synced {formatDateTime(order.synced_360_at)})</>}.
+          </p>
+          <Form method="post">
+            <input type="hidden" name="intent" value="sync360" />
+            <Button type="submit" variant="outline" size="sm" disabled={busy}>
+              Refresh from 360
+            </Button>
+          </Form>
+        </div>
+      ) : (
+        orders360 &&
+        order.status === "submitted" && (
+          <Alert variant="destructive">
+            Not in 360 yet{order.sync_360_error && <> — last attempt: {order.sync_360_error}</>}.
+            The sync retries every 15 minutes.
+          </Alert>
+        )
       )}
 
       <Card>

@@ -1,6 +1,7 @@
-import { createRequestHandler } from "react-router";
+import { createRequestHandler, type AppLoadContext } from "react-router";
 import { createDb, type Sql } from "../app/lib/db.server";
 import { runScheduledSync } from "../app/lib/sync.server";
+import { syncOrders360 } from "../app/lib/three60-orders.server";
 
 declare module "react-router" {
   export interface AppLoadContext {
@@ -33,10 +34,16 @@ export default {
 
   async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext) {
     const db = createDb(env);
+    const context: AppLoadContext = { cloudflare: { env, ctx }, db };
     ctx.waitUntil(
       runScheduledSync(db)
         .then((result) => {
           if (result.status !== "skipped") console.log("360 sync:", JSON.stringify(result));
+        })
+        // Orders push-retry + mirror rides the same cron (no-op until enabled).
+        .then(() => syncOrders360(context))
+        .then((result) => {
+          if (!result.skipped) console.log("360 orders:", JSON.stringify(result));
         })
         .finally(() => db.end({ timeout: 5 })),
     );
