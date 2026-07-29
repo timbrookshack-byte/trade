@@ -90,8 +90,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
     email: findColumn(headers, [/e-?mail/]),
     contact: findColumn(headers, [/contact|buyer|first ?name|full ?name|^name$/]),
     phone: findColumn(headers, [/phone|mobile|tel/]),
-    address: findColumn(headers, [/address/]),
-    abn: findColumn(headers, [/abn|tax|business number/]),
+    // Orderspace has "Address Name" (the addressee) before the real street
+    // columns — prefer "address 1"/street, fall back to any address column.
+    address: findColumn(headers, [/^address 1$|^address$|street/, /address(?! name)/, /address/]),
+    addr2: findColumn(headers, [/^address 2$/]),
+    city: findColumn(headers, [/town|city|suburb/]),
+    state: findColumn(headers, [/county\/state|^state$/]),
+    postcode: findColumn(headers, [/post ?code|zip/]),
+    status: findColumn(headers, [/^status$/]),
+    abn: findColumn(headers, [/abn|tax number|business number/, /tax/]),
   };
   if (col.email < 0 || col.business < 0) {
     return {
@@ -102,11 +109,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const db = context.db;
   let created = 0;
   const skipped: string[] = [];
-  for (const row of rows.slice(1).slice(0, 2000)) {
+  for (const row of rows.slice(1).slice(0, 5000)) {
     const email = (row[col.email] ?? "").trim().toLowerCase();
     const business = (row[col.business] ?? "").trim();
     if (!email.includes("@") || !business) {
       if (email || business) skipped.push(`${business || email} (missing email or name)`);
+      continue;
+    }
+    // Only bring across live accounts — Orderspace exports closed ones too.
+    const status = col.status >= 0 ? (row[col.status] ?? "").trim().toLowerCase() : "";
+    if (status && status !== "active") {
+      skipped.push(`${business} (${status} in the old portal)`);
       continue;
     }
     const existing = await db`SELECT 1 FROM customers WHERE lower(email) = ${email}`;
@@ -114,6 +127,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
       skipped.push(`${business} (${email} already exists)`);
       continue;
     }
+    const cell = (idx: number) => (idx >= 0 ? (row[idx] ?? "").trim() : "");
+    const cityLine = [cell(col.city), cell(col.state), cell(col.postcode)]
+      .filter(Boolean)
+      .join(" ");
+    const address = [cell(col.address), cell(col.addr2), cityLine].filter(Boolean).join("\n");
     // Imported customers arrive approved (they're existing trade customers)
     // with no usable password — they set one via an invite link.
     await db`
@@ -125,7 +143,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
               ${col.contact >= 0 ? (row[col.contact] ?? "").trim() : business},
               ${email},
               ${col.phone >= 0 ? (row[col.phone] ?? "").trim() : ""},
-              ${col.address >= 0 ? (row[col.address] ?? "").trim() : ""},
+              ${address},
               '', TRUE, now())
     `;
     created++;
