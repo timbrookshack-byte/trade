@@ -51,14 +51,27 @@ export default function StoreLayout() {
             </span>
           </Link>
           <nav className="flex items-center gap-5 text-sm font-medium">
-            <NavLink
-              to="/products"
-              className={({ isActive }) =>
-                cn("hover:text-primary", isActive && "underline underline-offset-8")
-              }
-            >
-              Products
-            </NavLink>
+            {[
+              { to: "/products", label: "Products" },
+              { to: "/projects", label: "Projects" },
+              { to: "/about", label: "About" },
+              { to: "/faq", label: "FAQ" },
+              { to: "/contact", label: "Contact" },
+            ].map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  cn(
+                    "hidden hover:text-primary sm:inline",
+                    item.to === "/products" && "inline",
+                    isActive && "underline underline-offset-8",
+                  )
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             {customer ? (
@@ -113,6 +126,28 @@ export default function StoreLayout() {
           <div className="space-y-1">
             {company.phone && <p>{company.phone}</p>}
             {company.email && <p>{company.email}</p>}
+          </div>
+          <div className="space-y-1">
+            <p>
+              <Link to="/about" className="underline-offset-4 hover:underline">
+                About us
+              </Link>
+            </p>
+            <p>
+              <Link to="/projects" className="underline-offset-4 hover:underline">
+                Projects
+              </Link>
+            </p>
+            <p>
+              <Link to="/faq" className="underline-offset-4 hover:underline">
+                FAQ
+              </Link>
+            </p>
+            <p>
+              <Link to="/contact" className="underline-offset-4 hover:underline">
+                Contact
+              </Link>
+            </p>
           </div>
           <div className="space-y-1">
             <p>

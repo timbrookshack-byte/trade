@@ -198,7 +198,11 @@ value stores a jsonb string, not an array). The rules:
 ## Storefront scope (phase 1)
 
 - Public: brochure pages, product gallery WITHOUT prices, "apply for a trade
-  account" form.
+  account" form. ✅ plus content pages: /about (settings-driven copy),
+  /faq (faqs table, accordions), /projects + /projects/:slug (projects table
+  — case studies with galleries; drafts 404 until published), /contact
+  (form → contact_messages + team email; honeypot field for bots). Team
+  edits everything under /admin/content, /admin/projects, /admin/messages.
 - Logged-in trade customer: prices visible, stock indicators ("In stock" /
   "Low" / "Incoming — ETA Aug"), cart → submit order (no online card payment in
   phase 1 — orders land in admin and are invoiced; payment upfront by EFT,

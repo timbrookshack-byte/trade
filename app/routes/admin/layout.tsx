@@ -7,7 +7,9 @@ import {
 } from "react-router";
 import {
   Boxes,
+  FileText,
   LayoutDashboard,
+  Mail,
   Package,
   Settings,
   ShoppingCart,
@@ -30,6 +32,9 @@ const nav = [
   { to: "/admin/categories", label: "Categories", icon: Tags },
   { to: "/admin/customers", label: "Customers", icon: UserRound },
   { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
+  { to: "/admin/content", label: "Content", icon: FileText },
+  { to: "/admin/projects", label: "Projects", icon: Boxes },
+  { to: "/admin/messages", label: "Messages", icon: Mail },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
