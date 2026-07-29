@@ -125,9 +125,17 @@ dispatch/complete flows through the same mirror. Auth for all endpoints: same
    `lines` is the FULL current sale (edits, freight and fees included —
    freight is just a line with an empty/none sku). The portal polls this on
    its 15-min cron for open pushed orders + a "Refresh from 360" button.
+   **Conversion-following (360 v001.498)**: confirming a quote in 360 creates
+   a successor invoice and marks the quote converted; the endpoint follows the
+   conversion and reports the live invoice's state, with `current_sale_number`
+   carrying the new number (+ `amount_paid`/`balance_due`). The portal ADOPTS
+   `current_sale_number` into `sale_number_360` on pull, so the admin banner
+   and payment relays reference the live invoice.
 3. `POST /api/trade/orders/:sale_number/payments` — body
    `{ amount, method, reference, paid_at, portal_order_ref }`: relay of a
-   payment recorded in the portal, so 360's ledger stays whole.
+   payment recorded in the portal, so 360's ledger stays whole. 360 side:
+   idempotent on `reference`, honours `paid_at` for the trading day, excluded
+   from till EOD, and accepts either the quote's or successor invoice's number.
 - (still requested, separate) `POST /api/trade/customers` — upsert portal
   trade customers into 360 (by email/ABN). Contract to be agreed later.
 

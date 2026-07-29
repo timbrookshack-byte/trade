@@ -26,10 +26,15 @@ interface Orders360Config {
 
 interface Sale360 {
   sale_number: string;
+  /** 360: confirming a quote creates a successor invoice; GET follows the
+   * conversion and reports the live sale here. The portal adopts it. */
+  current_sale_number?: string;
   portal_order_ref?: string;
   status?: string;
   lines?: { sku?: string | null; name?: string; qty?: number; unit_price_inc_gst?: number }[];
   total_inc_gst?: number;
+  amount_paid?: number;
+  balance_due?: number;
   updated_at?: string;
 }
 
@@ -159,6 +164,17 @@ export async function pullOrderFrom360(
   try {
     const sale = (await api360(config, `/${encodeURIComponent(order.sale_number_360)}`)) as Sale360;
     let changed = false;
+
+    // Confirming a quote in 360 creates a successor invoice — adopt the live
+    // number so the admin banner and payment relays reference the invoice.
+    const liveNumber = (sale.current_sale_number ?? "").trim();
+    if (liveNumber && liveNumber !== order.sale_number_360) {
+      await db`
+        UPDATE orders SET sale_number_360 = ${liveNumber}, updated_at = now()
+        WHERE id = ${orderId}
+      `;
+      changed = true;
+    }
 
     // Lines: 360's current sale is the truth (edits, freight, fees included).
     const lines = (sale.lines ?? []).filter((l) => l.name && (l.qty ?? 0) > 0);
