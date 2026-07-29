@@ -21,6 +21,11 @@ export interface Customer {
   approved_at: string | null;
   active: boolean;
   created_at: string;
+  how_heard?: string;
+  website?: string;
+  social_media?: string;
+  current_projects?: string;
+  additional_info?: string;
 }
 
 const CUSTOMER_COLS = `id, business_name, abn, business_type, contact_name, email, phone,
@@ -125,6 +130,11 @@ export async function registerCustomer(
     phone: string;
     address: string;
     password: string;
+    how_heard: string;
+    website: string;
+    social_media: string;
+    current_projects: string;
+    additional_info: string;
   },
 ) {
   const db = context.db;
@@ -134,9 +144,13 @@ export async function registerCustomer(
   if (existing.length > 0) return null;
   const password_hash = await hashPassword(input.password);
   const rows = await db<{ id: number }[]>`
-    INSERT INTO customers (business_name, abn, business_type, contact_name, email, phone, address, password_hash)
+    INSERT INTO customers (business_name, abn, business_type, contact_name, email, phone,
+                           address, password_hash, how_heard, website, social_media,
+                           current_projects, additional_info)
     VALUES (${input.business_name}, ${input.abn}, ${input.business_type}, ${input.contact_name},
-            lower(${input.email}), ${input.phone}, ${input.address}, ${password_hash})
+            lower(${input.email}), ${input.phone}, ${input.address}, ${password_hash},
+            ${input.how_heard}, ${input.website}, ${input.social_media},
+            ${input.current_projects}, ${input.additional_info})
     RETURNING id
   `;
   return rows[0];

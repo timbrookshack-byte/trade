@@ -59,6 +59,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     SELECT c.id, c.business_name, c.abn, c.business_type, c.contact_name, c.email, c.phone,
            c.address, c.price_tier, c.credit_terms, c.approved, c.approved_at, c.active,
            c.created_at, c.last_login_at,
+           c.how_heard, c.website, c.social_media, c.current_projects, c.additional_info,
            (SELECT MAX(o.submitted_at) FROM orders o
             WHERE o.customer_id = c.id AND o.status <> 'quote') AS last_order_at
     FROM customers c
@@ -242,6 +243,51 @@ export default function CustomersPage() {
                       {c.abn && <>ABN {c.abn} · </>}
                       {businessTypeLabel(c.business_type)}
                     </p>
+                    {(c.how_heard || c.website || c.social_media || c.current_projects || c.additional_info || c.address) && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-brand underline-offset-4 hover:underline">
+                          Application details
+                        </summary>
+                        <dl className="mt-2 max-w-md space-y-1.5 text-xs">
+                          {c.address && (
+                            <div>
+                              <dt className="font-medium">Address</dt>
+                              <dd className="whitespace-pre-line text-muted-foreground">{c.address}</dd>
+                            </div>
+                          )}
+                          {c.website && (
+                            <div>
+                              <dt className="font-medium">Website</dt>
+                              <dd className="break-all text-muted-foreground">{c.website}</dd>
+                            </div>
+                          )}
+                          {c.social_media && (
+                            <div>
+                              <dt className="font-medium">Social media</dt>
+                              <dd className="break-all text-muted-foreground">{c.social_media}</dd>
+                            </div>
+                          )}
+                          {c.how_heard && (
+                            <div>
+                              <dt className="font-medium">How they heard about us</dt>
+                              <dd className="text-muted-foreground">{c.how_heard}</dd>
+                            </div>
+                          )}
+                          {c.current_projects && (
+                            <div>
+                              <dt className="font-medium">Current projects</dt>
+                              <dd className="whitespace-pre-line text-muted-foreground">{c.current_projects}</dd>
+                            </div>
+                          )}
+                          {c.additional_info && (
+                            <div>
+                              <dt className="font-medium">Additional information</dt>
+                              <dd className="whitespace-pre-line text-muted-foreground">{c.additional_info}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </details>
+                    )}
                   </TableCell>
                   <TableCell>
                     <p>{c.contact_name}</p>

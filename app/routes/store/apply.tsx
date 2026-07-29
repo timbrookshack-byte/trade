@@ -65,6 +65,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     phone,
     address,
     password,
+    how_heard: String(form.get("how_heard") ?? "").trim(),
+    website: String(form.get("website") ?? "").trim(),
+    social_media: String(form.get("social_media") ?? "").trim(),
+    current_projects: String(form.get("current_projects") ?? "").trim(),
+    additional_info: String(form.get("additional_info") ?? "").trim(),
   });
   if (!created) {
     return { error: "An account with that email already exists — try logging in instead." };
@@ -137,6 +142,42 @@ export default function Apply() {
             <div className="flex flex-col gap-2 sm:col-span-2">
               <Label htmlFor="address">Business address</Label>
               <Textarea id="address" name="address" rows={2} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="website">Website</Label>
+              <Input id="website" name="website" placeholder="https://…" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="social_media">Social media</Label>
+              <Input
+                id="social_media"
+                name="social_media"
+                placeholder="Instagram / Facebook handle or link"
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="how_heard">How did you hear about us?</Label>
+              <Input id="how_heard" name="how_heard" />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="current_projects">
+                Are you currently working on any projects?
+              </Label>
+              <Textarea
+                id="current_projects"
+                name="current_projects"
+                rows={3}
+                placeholder="If yes, please provide details including timeline, estimated budget and requirements."
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="additional_info">Additional information</Label>
+              <Textarea
+                id="additional_info"
+                name="additional_info"
+                rows={2}
+                placeholder="Anything else we should know?"
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email (your login)</Label>
