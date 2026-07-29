@@ -300,7 +300,13 @@ registration received/approved. Domain-verified sender.
 `company_address`, `trade_api_url`, `trade_api_token` (secret — write-only in
 the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5),
 `shopify_domain`, `shopify_admin_token` (secret — write-only in the UI),
-`resend_api_key` (secret), `email_from`, `email_notify`.
+`resend_api_key` (secret), `email_from`, `email_notify`,
+`payment_phone`, `payment_account_name`, `payment_bsb`,
+`payment_account_number`, `payment_remittance_email` (payment options —
+defaults hardcoded in `app/lib/payment.ts`; shown on invoices, customer
+order pages, /faq#payment and order emails; policy: payment in full prior
+to dispatch, card by phone Visa/MC no fee / AMEX 1.95%, direct deposit
+with order number as REF + remittance advice email).
 Read/write via `settings.server.ts`, which upserts key/value rows.
 
 ### Setup on the 360 side (already live — Tim just enables the token)

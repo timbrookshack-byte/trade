@@ -1,6 +1,8 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listFaqs } from "~/lib/content.server";
 import { toParagraphs, type Faq } from "~/lib/content";
+import { getPaymentInfo } from "~/lib/payment.server";
+import { PaymentOptions } from "~/components/payment-options";
 
 export function meta() {
   return [
@@ -10,11 +12,12 @@ export function meta() {
 }
 
 export async function loader({ context }: LoaderFunctionArgs) {
-  return { faqs: await listFaqs(context) };
+  const [faqs, payment] = await Promise.all([listFaqs(context), getPaymentInfo(context)]);
+  return { faqs, payment };
 }
 
 export default function FaqPage() {
-  const { faqs } = useLoaderData<typeof loader>();
+  const { faqs, payment } = useLoaderData<typeof loader>();
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-10 py-6">
@@ -46,6 +49,17 @@ export default function FaqPage() {
           ))}
         </div>
       )}
+
+      <div id="payment">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand">Payment</p>
+        <h2 className="mt-3 text-2xl font-bold tracking-tight">Payment options</h2>
+        <div className="mt-4 rounded-xl border border-border bg-card p-6">
+          <PaymentOptions payment={payment} />
+          <p className="mt-3 text-sm text-muted-foreground">
+            Your payment reference is the order number shown on your invoice.
+          </p>
+        </div>
+      </div>
 
       <p className="text-muted-foreground">
         Still have a question?{" "}

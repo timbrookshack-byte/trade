@@ -13,6 +13,7 @@ import { readCart, serializeCart, type CartLine } from "~/lib/cart.server";
 import { createOrder } from "~/lib/orders.server";
 import { DELIVERY_METHODS, needsDeliveryAddress } from "~/lib/orders";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
+import { getPaymentInfo } from "~/lib/payment.server";
 import type { Product } from "~/lib/products";
 import { exGst, formatCurrency } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -118,9 +119,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
       SELECT order_number, total_inc_gst FROM orders WHERE id = ${orderId}
     `;
     const total = formatCurrency(Number(order.total_inc_gst));
+    const payment = await getPaymentInfo(context);
     queueEmail(context, {
       to: [customer.email],
-      ...emailTemplates.orderSubmitted(order.order_number, total),
+      ...emailTemplates.orderSubmitted(order.order_number, total, payment),
     });
     const notify = await getNotifyAddress(context);
     if (notify) {
@@ -285,8 +287,9 @@ export default function CartPage() {
                     <Textarea id="note" name="note" rows={2} placeholder="PO number, delivery instructions…" />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Submitting sends the order to the trade team. You'll receive a GST invoice —
-                    payment by EFT before dispatch.
+                    Submitting sends the order to the trade team. You'll receive a GST invoice
+                    with payment options (credit card by phone, or direct deposit) — payment in
+                    full is required prior to dispatch.
                   </p>
                   <Button
                     type="submit"

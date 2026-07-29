@@ -68,6 +68,21 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Company details saved." };
   }
 
+  if (intent === "payment") {
+    const entries: Record<string, string> = {};
+    for (const key of [
+      "payment_phone",
+      "payment_account_name",
+      "payment_bsb",
+      "payment_account_number",
+      "payment_remittance_email",
+    ]) {
+      entries[key] = String(form.get(key) ?? "").trim();
+    }
+    await setSettings(context, entries);
+    return { ok: "Payment details saved." };
+  }
+
   if (intent === "integration") {
     const discountRaw = Number(String(form.get("trade_discount_percent") ?? "").trim());
     const entries: Record<string, string> = {
@@ -202,6 +217,77 @@ export default function SettingsPage() {
             <div className="sm:col-span-2">
               <Button type="submit" disabled={busy}>
                 Save company details
+              </Button>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment details</CardTitle>
+          <CardDescription>
+            Shown on tax invoices, customer order pages, the FAQ page and order emails —
+            payment in full is required prior to dispatch. Blank fields fall back to the
+            defaults shown as placeholders.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="intent" value="payment" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="payment_phone">Credit card payment phone</Label>
+              <Input
+                id="payment_phone"
+                name="payment_phone"
+                placeholder="0424 477 794"
+                defaultValue={settings.payment_phone ?? ""}
+              />
+              <p className="text-xs text-muted-foreground">
+                Invoices say: call this number to pay via Visa/Mastercard (no fee) or AMEX
+                (1.95% surcharge).
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="payment_account_name">Bank account name</Label>
+              <Input
+                id="payment_account_name"
+                name="payment_account_name"
+                placeholder="The Furniture Shack Pty Ltd (NAB)"
+                defaultValue={settings.payment_account_name ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="payment_bsb">BSB</Label>
+              <Input
+                id="payment_bsb"
+                name="payment_bsb"
+                placeholder="084 129"
+                defaultValue={settings.payment_bsb ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="payment_account_number">Account number</Label>
+              <Input
+                id="payment_account_number"
+                name="payment_account_number"
+                placeholder="57 165 0656"
+                defaultValue={settings.payment_account_number ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="payment_remittance_email">Remittance advice email</Label>
+              <Input
+                id="payment_remittance_email"
+                name="payment_remittance_email"
+                type="email"
+                placeholder="trade@thefurnitureshack.com.au"
+                defaultValue={settings.payment_remittance_email ?? ""}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={busy}>
+                Save payment details
               </Button>
             </div>
           </Form>

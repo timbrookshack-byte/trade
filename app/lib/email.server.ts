@@ -1,4 +1,5 @@
 import type { AppLoadContext } from "react-router";
+import { CARD_TERMS, PAYMENT_POLICY, type PaymentInfo } from "./payment";
 
 /**
  * Emails via Resend (same as 360). Settings: resend_api_key (secret),
@@ -47,6 +48,20 @@ export async function getNotifyAddress(context: AppLoadContext) {
   return rows[0]?.value ?? "";
 }
 
+const paymentHtml = (payment: PaymentInfo, orderRef: string) => `
+  <div style="border:1px solid #ddd; border-radius:8px; padding:16px; margin-top:16px; font-size:14px;">
+    <p style="margin:0; font-weight:bold;">${PAYMENT_POLICY}</p>
+    <p style="margin:12px 0 4px; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:1px;">Credit card payment</p>
+    <p style="margin:0; color:#555;">Please call ${payment.phone} to pay via ${CARD_TERMS}.</p>
+    <p style="margin:12px 0 4px; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:1px;">Direct deposit payment</p>
+    <p style="margin:0; color:#555;">${payment.account_name}<br>
+    BSB: ${payment.bsb} &nbsp;ACC: ${payment.account_number}<br>
+    REF: <strong>${orderRef}</strong></p>
+    <p style="margin:8px 0 0; color:#555;">Please email remittance advice to
+    <a href="mailto:${payment.remittance_email}">${payment.remittance_email}</a>
+    when paying by direct deposit.</p>
+  </div>`;
+
 const wrap = (body: string) => `
   <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a;">
     <p style="letter-spacing: 4px; font-weight: bold; text-transform: uppercase;">The Furniture Shack <span style="color:#d6217f;">Trade</span></p>
@@ -81,13 +96,13 @@ export const emailTemplates = {
        <p><a href="https://thefurnitureshack.trade/trade/login">Sign in to the trade portal</a></p>`,
     ),
   }),
-  orderSubmitted: (orderNumber: string, totalIncGst: string) => ({
+  orderSubmitted: (orderNumber: string, totalIncGst: string, payment: PaymentInfo) => ({
     subject: `Order ${orderNumber} received`,
     html: wrap(
       `<p>Thanks — we've received your order <strong>${orderNumber}</strong>
        (total ${totalIncGst} inc GST).</p>
-       <p>The trade team will confirm it shortly and send an invoice. Orders are dispatched
-       once payment is received.</p>
+       <p>The trade team will confirm it shortly and send an invoice.</p>
+       ${paymentHtml(payment, orderNumber)}
        <p><a href="https://thefurnitureshack.trade/account/orders">View your orders</a></p>`,
     ),
   }),
@@ -99,11 +114,12 @@ export const emailTemplates = {
        <p><a href="https://thefurnitureshack.trade/admin/orders">Open orders in admin</a></p>`,
     ),
   }),
-  orderConfirmed: (orderNumber: string) => ({
+  orderConfirmed: (orderNumber: string, payment: PaymentInfo) => ({
     subject: `Order ${orderNumber} confirmed`,
     html: wrap(
       `<p>Your order <strong>${orderNumber}</strong> has been confirmed. We'll be in touch
-       with your invoice; dispatch happens once payment clears.</p>`,
+       with your invoice; dispatch happens once payment clears.</p>
+       ${paymentHtml(payment, orderNumber)}`,
     ),
   }),
   orderDispatched: (orderNumber: string) => ({

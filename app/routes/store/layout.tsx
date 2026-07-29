@@ -144,6 +144,11 @@ export default function StoreLayout() {
               </Link>
             </p>
             <p>
+              <Link to="/faq#payment" className="underline-offset-4 hover:underline">
+                Payment options
+              </Link>
+            </p>
+            <p>
               <Link to="/contact" className="underline-offset-4 hover:underline">
                 Contact
               </Link>

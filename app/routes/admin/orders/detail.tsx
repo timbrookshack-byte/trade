@@ -19,6 +19,7 @@ import {
   type Payment,
 } from "~/lib/orders";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
+import { getPaymentInfo } from "~/lib/payment.server";
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
@@ -70,7 +71,10 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     if (order.customer_email && (next === "confirmed" || next === "dispatched")) {
       const template =
         next === "confirmed"
-          ? emailTemplates.orderConfirmed(order.order_number ?? "")
+          ? emailTemplates.orderConfirmed(
+              order.order_number ?? "",
+              await getPaymentInfo(context),
+            )
           : emailTemplates.orderDispatched(order.order_number ?? "");
       queueEmail(context, { to: [order.customer_email], ...template });
     }

@@ -3,6 +3,8 @@ import { requireUser } from "~/lib/auth.server";
 import { getOrder } from "~/lib/orders.server";
 import { deliveryMethodLabel, type OrderItem, type Payment } from "~/lib/orders";
 import { getSettings } from "~/lib/settings.server";
+import { getPaymentInfo } from "~/lib/payment.server";
+import { PaymentOptions } from "~/components/payment-options";
 import { exGst, formatCurrency, formatDate } from "~/lib/utils";
 
 export function meta({ data }: { data?: { docTitle?: string } }) {
@@ -24,12 +26,15 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const docTitle =
     type === "invoice" ? "Tax Invoice" : type === "packing" ? "Packing Slip" : "Quotation";
 
-  const settings = await getSettings(context, [
-    "company_name",
-    "company_abn",
-    "company_phone",
-    "company_email",
-    "company_address",
+  const [settings, payment] = await Promise.all([
+    getSettings(context, [
+      "company_name",
+      "company_abn",
+      "company_phone",
+      "company_email",
+      "company_address",
+    ]),
+    getPaymentInfo(context),
   ]);
   // Packing slips carry no pricing — strip it server-side, not just visually.
   const scrubbed =
@@ -47,6 +52,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     ...scrubbed,
     type,
     docTitle,
+    payment,
     company: {
       name: settings.company_name || "The Furniture Shack — Trade",
       abn: settings.company_abn || "",
@@ -59,7 +65,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 }
 
 export default function OrderDoc() {
-  const { order, items, payments, paid, balance, type, docTitle, company, today } =
+  const { order, items, payments, paid, balance, type, docTitle, company, payment, today } =
     useLoaderData<typeof loader>();
   const total = Number(order.total_inc_gst);
   const showPrices = type !== "packing";
@@ -213,12 +219,19 @@ export default function OrderDoc() {
         </div>
       )}
 
-      <footer className="mt-10 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
-        {type === "invoice" && (
-          <p>
-            Payment by EFT prior to dispatch. Please quote {order.order_number} with your
-            payment.{paid > 0 && <> Amount paid to date: {formatCurrency(paid)}.</>}
-          </p>
+      {(type === "invoice" || type === "quote") && (
+        <section className="mt-8 rounded-md border border-neutral-300 p-4 break-inside-avoid">
+          {type === "invoice" && balance <= 0 && payments.length > 0 ? (
+            <p className="text-sm font-semibold">Paid in full — thank you.</p>
+          ) : (
+            <PaymentOptions payment={payment} orderRef={order.order_number ?? undefined} print />
+          )}
+        </section>
+      )}
+
+      <footer className="mt-6 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+        {type === "invoice" && paid > 0 && balance > 0 && (
+          <p>Amount paid to date: {formatCurrency(paid)}.</p>
         )}
         {type === "quote" && (
           <p>

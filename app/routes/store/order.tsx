@@ -12,6 +12,8 @@ import { getCustomer } from "~/lib/customer-auth.server";
 import { getOrder } from "~/lib/orders.server";
 import { deliveryMethodLabel, STATUS_LABELS } from "~/lib/orders";
 import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
+import { getPaymentInfo } from "~/lib/payment.server";
+import { PaymentOptions } from "~/components/payment-options";
 import { exGst, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
@@ -36,8 +38,12 @@ async function requireOwnOrder(context: any, request: Request, idParam: string |
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const { data } = await requireOwnOrder(context, request, params.id);
+  const payment = await getPaymentInfo(context);
   return {
     order: data.order,
+    paid: data.paid,
+    balance: data.balance,
+    payment,
     items: data.items.map((i) => ({
       sku: i.sku,
       name: i.name,
@@ -60,7 +66,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function CustomerOrder() {
-  const { order, items } = useLoaderData<typeof loader>();
+  const { order, items, paid, balance, payment } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const total = Number(order.total_inc_gst);
@@ -70,7 +76,7 @@ export default function CustomerOrder() {
       {searchParams.get("placed") && (
         <Alert variant="success">
           Order placed — the trade team has been notified and will confirm it shortly. A GST
-          invoice will follow; payment by EFT before dispatch.
+          invoice will follow; payment options are below.
         </Alert>
       )}
       <div className="flex items-start justify-between">
@@ -119,6 +125,30 @@ export default function CustomerOrder() {
           </div>
         </CardContent>
       </Card>
+
+      {order.status !== "cancelled" && (
+        <Card>
+          <CardContent className="pt-6">
+            {balance <= 0 && paid > 0 ? (
+              <p className="text-sm font-semibold">
+                Paid in full — thank you. Your order will be dispatched as arranged.
+              </p>
+            ) : (
+              <>
+                <PaymentOptions payment={payment} orderRef={order.order_number ?? undefined} />
+                {paid > 0 && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Paid to date: {formatCurrency(paid)} · Balance due:{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(Math.max(0, balance))}
+                    </span>
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-1 text-sm text-muted-foreground">
         {order.delivery_method && (
