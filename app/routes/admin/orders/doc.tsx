@@ -148,8 +148,8 @@ export default function OrderDoc() {
             <th className="py-2 pr-3 text-right font-semibold">Qty</th>
             {showPrices && (
               <>
-                <th className="py-2 pr-3 text-right font-semibold">Unit inc GST</th>
-                <th className="py-2 text-right font-semibold">Total inc GST</th>
+                <th className="py-2 pr-3 text-right font-semibold">Unit ex GST</th>
+                <th className="py-2 text-right font-semibold">Total ex GST</th>
               </>
             )}
             {!showPrices && <th className="py-2 text-right font-semibold">Picked</th>}
@@ -164,10 +164,10 @@ export default function OrderDoc() {
               {showPrices ? (
                 <>
                   <td className="py-2 pr-3 text-right">
-                    {formatCurrency(Number(item.unit_price_inc_gst))}
+                    {formatCurrency(exGst(Number(item.unit_price_inc_gst)))}
                   </td>
                   <td className="py-2 text-right">
-                    {formatCurrency(item.quantity * Number(item.unit_price_inc_gst))}
+                    {formatCurrency(exGst(item.quantity * Number(item.unit_price_inc_gst)))}
                   </td>
                 </>
               ) : (
@@ -235,8 +235,8 @@ export default function OrderDoc() {
         )}
         {type === "quote" && (
           <p>
-            Prices inc GST and subject to change after 30 days. Stock subject to availability
-            at time of order.
+            Line prices ex GST; the totals show the GST breakdown. Prices subject to change
+            after 30 days. Stock subject to availability at time of order.
           </p>
         )}
         {type === "packing" && <p>Check quantities on pick. {order.order_number}.</p>}
