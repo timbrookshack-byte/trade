@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Form,
   Link,
@@ -61,6 +62,9 @@ export default function StoreProduct() {
   const added = searchParams.get("added");
   const stock = stockStatus(product);
   const price = product.trade_price != null ? Number(product.trade_price) : null;
+  const gallery = [...new Set([product.image_url, ...(product.images ?? [])])].filter(Boolean);
+  const [photo, setPhoto] = useState(0);
+  const mainImage = gallery[Math.min(photo, gallery.length - 1)] ?? "";
 
   const specs: [string, string][] = [
     ["SKU", product.sku],
@@ -85,16 +89,38 @@ export default function StoreProduct() {
       </p>
 
       <div className="grid gap-10 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-lg border border-border bg-muted">
-          <div className="aspect-square w-full">
-            {product.image_url ? (
-              <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-5xl text-muted-foreground/40">
-                ▪
-              </div>
-            )}
+        <div className="flex flex-col gap-3">
+          <div className="overflow-hidden rounded-lg border border-border bg-muted">
+            <div className="aspect-square w-full">
+              {mainImage ? (
+                <img src={mainImage} alt={product.name} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-5xl text-muted-foreground/40">
+                  ▪
+                </div>
+              )}
+            </div>
           </div>
+          {gallery.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {gallery.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setPhoto(i)}
+                  className={cn(
+                    "h-16 w-16 overflow-hidden rounded-md border bg-muted",
+                    i === Math.min(photo, gallery.length - 1)
+                      ? "border-2 border-primary"
+                      : "border-border hover:border-primary/50",
+                  )}
+                  aria-label={`Photo ${i + 1} of ${product.name}`}
+                >
+                  <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-6">

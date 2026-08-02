@@ -12,6 +12,8 @@ export interface Product {
   cbm: string | null;
   weight_kg: string | null;
   image_url: string;
+  /** Gallery URLs (all Shopify images for SKU-matched/bundle products). */
+  images: string[];
   store_link: string;
   rrp_reference: string | null;
   trade_price: string | null;

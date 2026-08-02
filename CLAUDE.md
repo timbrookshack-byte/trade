@@ -173,6 +173,13 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   `overrides.description = "shopify"` (360 sync skips it, Shopify sync keeps
   it fresh). A manual admin edit sets `overrides.description = true` and
   beats both syncs.
+- **Image galleries**: the sync pulls ALL Shopify media (up to 20, deduped)
+  into `products.images` (jsonb array) — for bundles and for SKU-matched 360
+  products alike. Gallery data is Shopify-maintained like stock (no overrides
+  involved); 360's `image_url` stays the primary photo. The storefront product
+  page shows main image + clickable thumbnails. NB when comparing jsonb in
+  postgres.js guards, the param must go through `db.json(...)` too — a plain
+  string double-encodes to a jsonb string and never matches.
 
 ## Portal data model (its own Postgres)
 

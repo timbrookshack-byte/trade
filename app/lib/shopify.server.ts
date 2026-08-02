@@ -23,6 +23,7 @@ interface ShopifyBundle {
   description: string;
   category: string;
   image_url: string;
+  images: string[];
   rrp: number | null;
   components: { sku: string; quantity: number }[];
 }
@@ -125,6 +126,7 @@ query BundleProducts($cursor: String, $pageSize: Int!) {
       productType
       descriptionHtml
       featuredMedia { preview { image { url } } }
+      media(first: 20) { nodes { preview { image { url } } } }
       variants(first: 1) { nodes { sku price } }
       bundleComponents(first: 40) {
         nodes {
@@ -138,17 +140,18 @@ query BundleProducts($cursor: String, $pageSize: Int!) {
   }
 }`;
 
-interface ShopifyDescription {
+interface ShopifyEnrichment {
   sku: string;
   description: string;
+  images: string[];
 }
 
 async function fetchBundles(
   domain: string,
   token: string,
-): Promise<{ bundles: ShopifyBundle[]; descriptions: ShopifyDescription[] }> {
+): Promise<{ bundles: ShopifyBundle[]; enrichments: ShopifyEnrichment[] }> {
   const bundles: ShopifyBundle[] = [];
-  const descriptions: ShopifyDescription[] = [];
+  const enrichments: ShopifyEnrichment[] = [];
   let cursor: string | null = null;
 
   for (let page = 0; page < 40; page++) {
@@ -178,6 +181,13 @@ async function fetchBundles(
 
     for (const node of products.nodes) {
       if (node.status && node.status !== "ACTIVE") continue;
+      const gallery: string[] = [
+        ...new Set(
+          (node.media?.nodes ?? [])
+            .map((m: any) => String(m?.preview?.image?.url ?? "").trim())
+            .filter(Boolean) as string[],
+        ),
+      ].slice(0, 20);
       const components = (node.bundleComponents?.nodes ?? [])
         .map((c: any) => ({
           sku: String(c?.componentProduct?.variants?.nodes?.[0]?.sku ?? "").trim(),
@@ -186,11 +196,13 @@ async function fetchBundles(
         .filter((c: { sku: string }) => c.sku);
 
       if (components.length === 0) {
-        // Not a bundle — but its richer Shopify copy can enrich the matching
-        // 360-sourced product by SKU.
+        // Not a bundle — but its richer Shopify copy and full image gallery
+        // can enrich the matching 360-sourced product by SKU.
         const plainSku = String(node.variants?.nodes?.[0]?.sku ?? "").trim();
         const plainDesc = stripHtml(String(node.descriptionHtml ?? ""));
-        if (plainSku && plainDesc) descriptions.push({ sku: plainSku, description: plainDesc });
+        if (plainSku && (plainDesc || gallery.length > 0)) {
+          enrichments.push({ sku: plainSku, description: plainDesc, images: gallery });
+        }
         continue;
       }
 
@@ -203,6 +215,7 @@ async function fetchBundles(
         description: stripHtml(String(node.descriptionHtml ?? "")),
         category: String(node.productType ?? "").trim() || "Packages",
         image_url: String(node.featuredMedia?.preview?.image?.url ?? ""),
+        images: gallery,
         rrp: Number.isFinite(price) && price > 0 ? price : null,
         components,
       });
@@ -211,7 +224,7 @@ async function fetchBundles(
     if (!products.pageInfo.hasNextPage) break;
     cursor = products.pageInfo.endCursor;
   }
-  return { bundles: bundles.filter((b) => b.name), descriptions };
+  return { bundles: bundles.filter((b) => b.name), enrichments };
 }
 
 /**
@@ -220,10 +233,11 @@ async function fetchBundles(
  * this sync keeps it fresh; a manual admin edit (overrides.description =
  * true) always wins and is never clobbered here.
  */
-async function applyShopifyDescriptions(db: Sql, descriptions: ShopifyDescription[]) {
+async function applyShopifyDescriptions(db: Sql, enrichments: ShopifyEnrichment[]) {
   let updated = 0;
-  for (let i = 0; i < descriptions.length; i += 100) {
-    const chunk = descriptions.slice(i, i + 100).map((d) => [d.sku, d.description]);
+  const withDesc = enrichments.filter((e) => e.description);
+  for (let i = 0; i < withDesc.length; i += 100) {
+    const chunk = withDesc.slice(i, i + 100).map((d) => [d.sku, d.description]);
     const rows = await db<{ id: number }[]>`
       UPDATE products p SET
         description = d.description,
@@ -235,6 +249,30 @@ async function applyShopifyDescriptions(db: Sql, descriptions: ShopifyDescriptio
         AND (NOT p.overrides ? 'description' OR p.overrides->>'description' = 'shopify')
         AND p.description IS DISTINCT FROM d.description
       RETURNING p.id
+    `;
+    updated += rows.length;
+  }
+  return updated;
+}
+
+/**
+ * SKU-match full Shopify image galleries onto 360-sourced products. The
+ * gallery is Shopify-maintained data (like stock), not editable copy — no
+ * overrides involved; each sync keeps it fresh. 360's own image_url stays
+ * the primary photo everywhere.
+ */
+async function applyShopifyImages(db: Sql, enrichments: ShopifyEnrichment[]) {
+  let updated = 0;
+  const withImages = enrichments.filter((e) => e.images.length > 0);
+  for (const e of withImages) {
+    const rows = await db<{ id: number }[]>`
+      UPDATE products SET images = ${db.json(e.images)}, updated_at = now()
+      WHERE source = 'shack360'
+        AND upper(sku) = upper(${e.sku})
+        -- db.json here too: a plain string param double-encodes to a jsonb
+        -- *string* and the guard never matches (CLAUDE.md jsonb rule).
+        AND images IS DISTINCT FROM ${db.json(e.images)}::jsonb
+      RETURNING id
     `;
     updated += rows.length;
   }
@@ -264,7 +302,7 @@ export async function runShopifyBundleSync(
   `;
 
   try {
-    const { bundles, descriptions } = await fetchBundles(
+    const { bundles, enrichments } = await fetchBundles(
       settings.shopify_domain,
       settings.shopify_admin_token,
     );
@@ -275,14 +313,15 @@ export async function runShopifyBundleSync(
 
     for (const bundle of bundles) {
       const rows = (await db`
-        INSERT INTO products (sku, source, name, category, description, image_url, rrp_reference, stock_synced_at)
+        INSERT INTO products (sku, source, name, category, description, image_url, images, rrp_reference, stock_synced_at)
         VALUES (${bundle.sku}, 'shopify', ${bundle.name}, ${bundle.category},
-                ${bundle.description}, ${bundle.image_url}, ${bundle.rrp}, ${now})
+                ${bundle.description}, ${bundle.image_url}, ${db.json(bundle.images)}, ${bundle.rrp}, ${now})
         ON CONFLICT (sku) DO UPDATE SET
           name = CASE WHEN products.overrides ? 'name' THEN products.name ELSE EXCLUDED.name END,
           description = CASE WHEN products.overrides ? 'description' THEN products.description ELSE EXCLUDED.description END,
           category = CASE WHEN products.overrides ? 'category' THEN products.category ELSE EXCLUDED.category END,
           image_url = EXCLUDED.image_url,
+          images = EXCLUDED.images,
           rrp_reference = EXCLUDED.rrp_reference,
           stock_synced_at = EXCLUDED.stock_synced_at,
           discontinued_at = NULL,
@@ -321,7 +360,8 @@ export async function runShopifyBundleSync(
             RETURNING sku
           `;
 
-    const descriptionsApplied = await applyShopifyDescriptions(db, descriptions);
+    const descriptionsApplied = await applyShopifyDescriptions(db, enrichments);
+    const imagesApplied = await applyShopifyImages(db, enrichments);
     await recomputeBundleStock(db);
 
     await db`
@@ -329,7 +369,7 @@ export async function runShopifyBundleSync(
         finished_at = now(), status = 'success',
         products_in_feed = ${bundles.length},
         created_count = ${created},
-        updated_count = ${updated + descriptionsApplied},
+        updated_count = ${updated + descriptionsApplied + imagesApplied},
         discontinued_count = ${gone.length}
       WHERE id = ${run.id}
     `;
