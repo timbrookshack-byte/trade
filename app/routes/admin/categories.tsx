@@ -1,5 +1,6 @@
 import {
   Form,
+  Link,
   useActionData,
   useLoaderData,
   useNavigation,
@@ -113,7 +114,8 @@ export default function CategoriesPage() {
           Categories come from 360 with each sync (plus any you add here for portal-only
           products). Rename how they appear on the storefront — same display name merges
           tiles — set a custom tile image, or hide a category from the site. Without a
-          custom image, the tile uses the best-stocked product's photo.
+          custom image, the tile uses the best-stocked product's photo. Click a category
+          to see its products.
         </p>
       </div>
 
@@ -162,11 +164,21 @@ export default function CategoriesPage() {
                 {categories.map((c: CategoryRow) => (
                   <TableRow key={c.category}>
                     <TableCell className="font-medium">
-                      {c.category}
+                      <Link
+                        to={`/admin/categories/${encodeURIComponent(c.category)}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {c.category}
+                      </Link>
                       <input type="hidden" name="category" value={c.category} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {c.active_count} / {c.total_count}
+                    <TableCell>
+                      <Link
+                        to={`/admin/categories/${encodeURIComponent(c.category)}`}
+                        className="text-muted-foreground underline-offset-4 hover:underline"
+                      >
+                        {c.active_count} / {c.total_count}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <Input
