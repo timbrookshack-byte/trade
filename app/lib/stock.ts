@@ -12,12 +12,14 @@ export type StockStatus =
   | { kind: "incoming"; label: string }
   | { kind: "out"; label: string };
 
-function formatEtaMonth(eta: string) {
+function formatEtaDate(eta: string) {
   const date = new Date(eta);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Brisbane",
-    month: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   }).format(date);
 }
 
@@ -31,11 +33,15 @@ export function stockStatus(product: Product): StockStatus {
     return { kind: "in_stock", label: "In stock" };
   }
   if (product.available_now > 0) {
-    return { kind: "low", label: `Low stock — ${product.available_now} left` };
+    const eta = incoming.length > 0 ? formatEtaDate(incoming[0].eta) : "";
+    return {
+      kind: "low",
+      label: `Low stock — ${product.available_now} left${eta ? ` · more due ${eta}` : ""}`,
+    };
   }
   if (incoming.length > 0) {
-    const month = formatEtaMonth(incoming[0].eta);
-    return { kind: "incoming", label: month ? `Incoming — ETA ${month}` : "Incoming" };
+    const eta = formatEtaDate(incoming[0].eta);
+    return { kind: "incoming", label: eta ? `Incoming — ETA ${eta}` : "Incoming" };
   }
   return { kind: "out", label: "Out of stock" };
 }
