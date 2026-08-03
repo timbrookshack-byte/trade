@@ -101,6 +101,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       UPDATE products SET
         trade_price = ${tradePrice},
         active = ${active},
+        auto_deactivated = FALSE,
         name = ${name},
         description = ${description},
         category = ${category},
@@ -121,6 +122,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         sku = ${skuRaw},
         trade_price = ${tradePrice},
         active = ${active},
+        auto_deactivated = FALSE,
         name = ${name},
         description = ${description},
         category = ${category},

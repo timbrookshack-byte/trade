@@ -14,6 +14,9 @@ export interface Product {
   image_url: string;
   /** Gallery URLs (all Shopify images for SKU-matched/bundle products). */
   images: string[];
+  /** True when the SYNC deactivated it (zero stock, nothing incoming) — it
+   * may auto-reactivate when stock returns; manual deactivations never do. */
+  auto_deactivated: boolean;
   store_link: string;
   rrp_reference: string | null;
   trade_price: string | null;

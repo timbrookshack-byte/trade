@@ -132,14 +132,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const db = context.db;
     if (intent === "selected-deactivate") {
       const rows = await db<{ id: number }[]>`
-        UPDATE products SET active = FALSE, updated_at = now()
+        UPDATE products SET active = FALSE, auto_deactivated = FALSE, updated_at = now()
         WHERE id IN ${db(ids)} AND active RETURNING id
       `;
       return { bulkResult: `${rows.length} product(s) deactivated — hidden from the storefront.` };
     }
     if (intent === "selected-activate") {
       const rows = await db<{ id: number }[]>`
-        UPDATE products SET active = TRUE, updated_at = now()
+        UPDATE products SET active = TRUE, auto_deactivated = FALSE, updated_at = now()
         WHERE id IN ${db(ids)} AND NOT active
           AND trade_price IS NOT NULL AND discontinued_at IS NULL
         RETURNING id
@@ -403,7 +403,9 @@ export default function ProductsList() {
                       ) : p.active ? (
                         <Badge>active</Badge>
                       ) : (
-                        <Badge variant="secondary">inactive</Badge>
+                        <Badge variant="secondary">
+                          {p.auto_deactivated ? "inactive — no stock" : "inactive"}
+                        </Badge>
                       )}
                       {p.source === "portal" && <Badge variant="outline">portal</Badge>}
                       {p.source === "shopify" && <Badge variant="outline">bundle</Badge>}
