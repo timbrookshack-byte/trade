@@ -253,6 +253,9 @@ export default function EditProduct() {
                   )}
                   {c.name && (
                     <span className="ml-auto text-muted-foreground">
+                      {c.trade_price != null && (
+                        <>{formatCurrency(Number(c.trade_price))} · </>
+                      )}
                       {c.discontinued ? "discontinued" : `${c.available_now} in stock`}
                     </span>
                   )}
@@ -262,6 +265,37 @@ export default function EditProduct() {
                 <li className="text-muted-foreground">No components recorded — re-run Sync bundles.</li>
               )}
             </ul>
+            {components.length > 0 &&
+              components.every((c: BundleComponentRow) => c.trade_price != null) && (
+                <p className="mt-4 border-t border-border pt-3 text-sm text-muted-foreground">
+                  Components bought separately at trade:{" "}
+                  <span className="font-semibold text-foreground">
+                    {formatCurrency(
+                      components.reduce(
+                        (sum: number, c: BundleComponentRow) =>
+                          sum + c.quantity * Number(c.trade_price),
+                        0,
+                      ),
+                    )}{" "}
+                    inc GST
+                  </span>
+                  {price != null && (
+                    <>
+                      {" "}
+                      — this bundle is priced at {formatCurrency(price)} inc (
+                      {price <=
+                      components.reduce(
+                        (sum: number, c: BundleComponentRow) =>
+                          sum + c.quantity * Number(c.trade_price),
+                        0,
+                      )
+                        ? "cheaper than the pieces"
+                        : "MORE than the pieces — check the price"}
+                      ).
+                    </>
+                  )}
+                </p>
+              )}
           </CardContent>
         </Card>
       )}

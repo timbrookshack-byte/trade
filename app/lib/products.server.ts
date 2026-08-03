@@ -43,6 +43,35 @@ export function defaultTradePrice(rrpIncGst: number, discountPercent: number) {
   return Math.round(rrpIncGst * (1 - discountPercent / 100) * 100) / 100;
 }
 
+/**
+ * The stock rule, applied after every sync (360 products AND Shopify bundles,
+ * whose available_now is computed from components): zero on hand and nothing
+ * incoming → off the storefront, flagged auto_deactivated. Only the sync's own
+ * deactivations reactivate when stock returns — manual ones never do.
+ */
+export async function applyStockAutoToggle(db: Sql) {
+  const deactivated = await db<{ sku: string }[]>`
+    UPDATE products SET active = FALSE, auto_deactivated = TRUE, updated_at = now()
+    WHERE source IN ('shack360', 'shopify') AND active AND discontinued_at IS NULL
+      AND available_now <= 0
+      AND (incoming IS NULL OR jsonb_array_length(incoming) = 0)
+    RETURNING sku
+  `;
+  const reactivated = await db<{ sku: string }[]>`
+    UPDATE products SET active = TRUE, auto_deactivated = FALSE, updated_at = now()
+    WHERE source IN ('shack360', 'shopify') AND NOT active AND auto_deactivated
+      AND discontinued_at IS NULL AND trade_price IS NOT NULL
+      AND (available_now > 0 OR jsonb_array_length(incoming) > 0)
+    RETURNING sku
+  `;
+  if (deactivated.length > 0 || reactivated.length > 0) {
+    console.log(
+      `stock auto-toggle: ${deactivated.length} deactivated, ${reactivated.length} reactivated`,
+    );
+  }
+  return { deactivated: deactivated.length, reactivated: reactivated.length };
+}
+
 /** Set the default trade price on every unpriced 360 product. Returns count. */
 export async function applyDefaultPricing(db: Sql, discountPercent: number) {
   const rows = await db<{ id: number }[]>`

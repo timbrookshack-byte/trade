@@ -1,5 +1,5 @@
 import type { Sql } from "./db.server";
-import { recomputeBundleStock } from "./products.server";
+import { applyStockAutoToggle, recomputeBundleStock } from "./products.server";
 import { runScheduledShopifySync } from "./shopify.server";
 
 /**
@@ -154,31 +154,10 @@ export async function runSync(db: Sql, trigger: "cron" | "manual"): Promise<Sync
           `
         : [];
 
-    // Sold out and nothing on the water → off the storefront automatically.
-    // Only the sync's own deactivations may auto-reactivate when stock
-    // returns; a manual deactivation by the team stays off until they act.
-    const deactivated = await db<{ sku: string }[]>`
-      UPDATE products SET active = FALSE, auto_deactivated = TRUE, updated_at = now()
-      WHERE source = 'shack360' AND active AND discontinued_at IS NULL
-        AND available_now <= 0
-        AND (incoming IS NULL OR jsonb_array_length(incoming) = 0)
-      RETURNING sku
-    `;
-    const reactivated = await db<{ sku: string }[]>`
-      UPDATE products SET active = TRUE, auto_deactivated = FALSE, updated_at = now()
-      WHERE source = 'shack360' AND NOT active AND auto_deactivated
-        AND discontinued_at IS NULL AND trade_price IS NOT NULL
-        AND (available_now > 0 OR jsonb_array_length(incoming) > 0)
-      RETURNING sku
-    `;
-    if (deactivated.length > 0 || reactivated.length > 0) {
-      console.log(
-        `stock auto-toggle: ${deactivated.length} deactivated, ${reactivated.length} reactivated`,
-      );
-    }
-
-    // Bundle availability derives from component stock — refresh it now.
+    // Bundle availability derives from component stock — refresh it, then
+    // apply the stock rule (sold out + nothing incoming → off the storefront).
     await recomputeBundleStock(db);
+    await applyStockAutoToggle(db);
 
     await db`
       UPDATE sync_runs SET

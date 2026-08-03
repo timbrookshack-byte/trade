@@ -1,5 +1,5 @@
 import type { Sql } from "./db.server";
-import { recomputeBundleStock } from "./products.server";
+import { applyStockAutoToggle, defaultTradePrice, recomputeBundleStock } from "./products.server";
 import type { SyncResult } from "./sync.server";
 
 /**
@@ -310,6 +310,10 @@ export async function runShopifyBundleSync(
     let created = 0;
     let updated = 0;
     const now = new Date();
+    const [discountRow] = await db<{ value: string }[]>`
+      SELECT value FROM settings WHERE key = 'trade_discount_percent'
+    `;
+    const discountPercent = Number(discountRow?.value) || 37.5;
 
     for (const bundle of bundles) {
       const rows = (await db`
@@ -331,8 +335,21 @@ export async function runShopifyBundleSync(
       `) as unknown as { id: number; inserted: boolean }[];
       const row = rows[0];
       if (!row) continue; // SKU collision with a non-shopify product — skip
-      if (row.inserted) created++;
-      else updated++;
+      if (row.inserted) {
+        created++;
+        // NEW bundles go live by default: priced at the default trade formula
+        // (Shopify price − trade discount) and active — the stock auto-toggle
+        // below pulls them straight back off if components are short. The
+        // team can reprice/deactivate any time; sync never touches either
+        // again after this.
+        if (bundle.rrp != null) {
+          await db`
+            UPDATE products
+            SET trade_price = ${defaultTradePrice(bundle.rrp, discountPercent)}, active = TRUE
+            WHERE id = ${row.id}
+          `;
+        }
+      } else updated++;
 
       await db`DELETE FROM bundle_components WHERE bundle_id = ${row.id}`;
       for (let i = 0; i < bundle.components.length; i++) {
@@ -363,6 +380,7 @@ export async function runShopifyBundleSync(
     const descriptionsApplied = await applyShopifyDescriptions(db, enrichments);
     const imagesApplied = await applyShopifyImages(db, enrichments);
     await recomputeBundleStock(db);
+    await applyStockAutoToggle(db);
 
     await db`
       UPDATE sync_runs SET
@@ -421,13 +439,14 @@ export interface BundleComponentRow {
   image_url: string | null;
   available_now: number | null;
   discontinued: boolean | null;
+  trade_price: string | null;
 }
 
 /** Components of a bundle, joined to the portal catalogue (null name = SKU not in portal). */
 export async function getBundleComponents(db: Sql, bundleId: number) {
   return db<BundleComponentRow[]>`
     SELECT bc.component_sku, bc.quantity,
-           p.name, p.image_url, p.available_now,
+           p.name, p.image_url, p.available_now, p.trade_price,
            (p.discontinued_at IS NOT NULL) AS discontinued
     FROM bundle_components bc
     LEFT JOIN products p ON upper(p.sku) = upper(bc.component_sku)
