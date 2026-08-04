@@ -62,7 +62,12 @@ export default function StoreProduct() {
   const added = searchParams.get("added");
   const stock = stockStatus(product);
   const price = product.trade_price != null ? Number(product.trade_price) : null;
-  const gallery = [...new Set([product.image_url, ...(product.images ?? [])])].filter(Boolean);
+  // Shopify gallery photos are full-res; 360's image_url is low-res — when a
+  // gallery exists, use it alone so the first photo is always sharp.
+  const gallery =
+    (product.images ?? []).length > 0
+      ? [...new Set(product.images)]
+      : [product.image_url].filter(Boolean);
   const [photo, setPhoto] = useState(0);
   const mainImage = gallery[Math.min(photo, gallery.length - 1)] ?? "";
 

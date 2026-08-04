@@ -176,8 +176,11 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
 - **Image galleries**: the sync pulls ALL Shopify media (up to 20, deduped)
   into `products.images` (jsonb array) — for bundles and for SKU-matched 360
   products alike. Gallery data is Shopify-maintained like stock (no overrides
-  involved); 360's `image_url` stays the primary photo. The storefront product
-  page shows main image + clickable thumbnails. NB when comparing jsonb in
+  involved). 360's `image_url` is LOW-RES: display always prefers the Shopify
+  gallery — `productPhoto()` in products.ts / `images->>0` in SQL — falling
+  back to `image_url` only when no gallery exists, and the product-page
+  gallery drops the 360 photo entirely when Shopify images are present. The
+  storefront product page shows main image + clickable thumbnails. NB when comparing jsonb in
   postgres.js guards, the param must go through `db.json(...)` too — a plain
   string double-encodes to a jsonb string and never matches.
 
@@ -235,6 +238,10 @@ value stores a jsonb string, not an array). The rules:
   (`image_url`; blank = best-stocked product's photo), and add manual
   categories for portal-only products. Admin works in raw 360 names;
   ALL storefront queries must join category_settings (see store.server.ts).
+  Products can ALSO appear in extra categories: `products.extra_categories`
+  (jsonb array of raw names, portal-owned, sync never touches) — set via
+  "Also show in" checkboxes on the product edit page; storefront tiles,
+  category pages, admin category filter and category detail all include them.
 - Customers: approve registrations, set tiers/terms, view order history;
   sortable columns (business/applied/last login/last order); CSV import
   (/admin/customers/import — Orderspace export compatible; imported rows are

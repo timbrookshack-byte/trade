@@ -15,7 +15,7 @@ import { DELIVERY_METHODS, needsDeliveryAddress } from "~/lib/orders";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { getPaymentInfo } from "~/lib/payment.server";
 import { pushOrderTo360 } from "~/lib/three60-orders.server";
-import type { Product } from "~/lib/products";
+import { productPhoto, type Product } from "~/lib/products";
 import { exGst, formatCurrency } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
@@ -56,7 +56,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       sku: l.sku,
       qty: l.qty,
       name: l.product.name,
-      image_url: l.product.image_url,
+      image_url: productPhoto(l.product),
       unit: customer.approved ? Number(l.product.trade_price) : null,
     })),
     total: customer.approved ? total : null,

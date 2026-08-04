@@ -17,6 +17,9 @@ export interface Product {
   /** True when the SYNC deactivated it (zero stock, nothing incoming) — it
    * may auto-reactivate when stock returns; manual deactivations never do. */
   auto_deactivated: boolean;
+  /** Portal-assigned additional categories (raw names) — the product also
+   * appears under these on the storefront. Sync never touches this. */
+  extra_categories: string[];
   store_link: string;
   rrp_reference: string | null;
   trade_price: string | null;
@@ -28,6 +31,14 @@ export interface Product {
   overrides: Record<string, boolean>;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Best display photo: Shopify gallery images are full resolution, while 360's
+ * image_url is low-res — prefer the gallery's first image when there is one.
+ */
+export function productPhoto(p: { image_url: string | null; images?: string[] | null }) {
+  return p.images?.[0] || p.image_url || "";
 }
 
 export type ProductFilter =

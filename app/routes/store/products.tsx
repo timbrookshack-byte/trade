@@ -1,6 +1,7 @@
 import { Form, Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listCategories, listStoreProducts, scrubProductForPublic } from "~/lib/store.server";
 import { getCustomer } from "~/lib/customer-auth.server";
+import { productPhoto } from "~/lib/products";
 import { stockStatus } from "~/lib/stock";
 import type { Product } from "~/lib/products";
 import { cn, exGst, formatCurrency } from "~/lib/utils";
@@ -123,9 +124,9 @@ export default function StoreProducts() {
                 className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card"
               >
                 <div className="aspect-square w-full overflow-hidden bg-muted">
-                  {p.image_url ? (
+                  {productPhoto(p) ? (
                     <img
-                      src={p.image_url}
+                      src={productPhoto(p)}
                       alt={p.name}
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

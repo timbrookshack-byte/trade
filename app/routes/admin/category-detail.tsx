@@ -62,7 +62,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   `;
   const products = await db<CategoryProduct[]>`
     SELECT id, sku, name, source, image_url, trade_price, active, available_now, discontinued_at
-    FROM products WHERE category = ${category}
+    FROM products WHERE category = ${category} OR extra_categories ? ${category}
     ORDER BY (discontinued_at IS NOT NULL), active DESC, name
     LIMIT 1000
   `;

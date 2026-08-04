@@ -1,7 +1,7 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import { getSettings } from "~/lib/settings.server";
-import type { Product } from "~/lib/products";
+import { productPhoto, type Product } from "~/lib/products";
 import { cn, exGst, formatCurrency, formatDate } from "~/lib/utils";
 
 export function meta() {
@@ -131,8 +131,8 @@ export default function ProductSheet() {
               className="flex gap-5 rounded-lg border border-neutral-200 p-4 break-inside-avoid"
             >
               <div className="h-40 w-40 shrink-0 overflow-hidden rounded-md bg-neutral-100">
-                {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                {productPhoto(p) ? (
+                  <img src={productPhoto(p)} alt={p.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-3xl text-neutral-300">
                     ▪

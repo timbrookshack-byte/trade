@@ -20,7 +20,7 @@ export async function listProducts(
         WHEN 'discontinued' THEN discontinued_at IS NOT NULL
         ELSE TRUE
       END
-      AND (${cat}::text IS NULL OR category = ${cat})
+      AND (${cat}::text IS NULL OR category = ${cat} OR extra_categories ? ${cat})
       AND (${term}::text IS NULL OR sku ILIKE ${term} OR name ILIKE ${term} OR category ILIKE ${term})
     ORDER BY category, name
     LIMIT 1000

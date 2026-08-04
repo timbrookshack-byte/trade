@@ -44,7 +44,15 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       : null;
   const components =
     product.source === "shopify" ? await getBundleComponents(context.db, product.id) : [];
-  return { product, discountPercent, suggested, components };
+  const allCategories = (
+    await context.db<{ category: string }[]>`
+      SELECT category FROM products WHERE category <> ''
+      UNION
+      SELECT category FROM category_settings
+      ORDER BY category
+    `
+  ).map((r: { category: string }) => r.category);
+  return { product, discountPercent, suggested, components, allCategories };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -69,6 +77,9 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const active = form.get("active") === "on";
   const name = String(form.get("name") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
+  const extraCategories = [...new Set(form.getAll("extra_categories").map(String))]
+    .filter((c) => c.trim() && c !== product.category)
+    .slice(0, 10);
 
   let tradePrice: number | null = null;
   if (priceRaw !== "") {
@@ -105,6 +116,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         name = ${name},
         description = ${description},
         category = ${category},
+        extra_categories = ${db.json(extraCategories)},
         overrides = ${db.json(overrides)},
         updated_at = now()
       WHERE id = ${id}
@@ -126,6 +138,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         name = ${name},
         description = ${description},
         category = ${category},
+        extra_categories = ${db.json(extraCategories)},
         dimensions = ${String(form.get("dimensions") ?? "").trim()},
         image_url = ${String(form.get("image_url") ?? "").trim()},
         updated_at = now()
@@ -136,7 +149,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function EditProduct() {
-  const { product, discountPercent, suggested, components } = useLoaderData<typeof loader>();
+  const { product, discountPercent, suggested, components, allCategories } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -373,6 +386,31 @@ export default function EditProduct() {
                 <Input id="category" name="category" defaultValue={product.category} />
               </div>
             )}
+
+            <div className="flex flex-col gap-2">
+              <Label>
+                Also show in{" "}
+                <span className="font-normal text-muted-foreground">
+                  (extra storefront categories, in addition to "{product.category}")
+                </span>
+              </Label>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 sm:grid-cols-3">
+                {allCategories
+                  .filter((c: string) => c !== product.category)
+                  .map((c: string) => (
+                    <label key={c} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="extra_categories"
+                        value={c}
+                        defaultChecked={product.extra_categories.includes(c)}
+                        className="size-4 accent-primary"
+                      />
+                      <span className="truncate">{c}</span>
+                    </label>
+                  ))}
+              </div>
+            </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">
                 Name

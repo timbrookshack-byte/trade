@@ -14,17 +14,28 @@ export interface CategoryTile {
 // hidden). Admin screens keep working in raw 360 names.
 
 export async function listCategories(context: AppLoadContext): Promise<CategoryTile[]> {
+  // Each product counts under its primary category AND any extra_categories.
+  // Tile photo prefers the Shopify gallery's first image (full-res) over
+  // 360's low-res image_url.
   return context.db<CategoryTile[]>`
-    SELECT COALESCE(NULLIF(cs.display_name, ''), p.category) AS category,
+    SELECT COALESCE(NULLIF(cs.display_name, ''), pc.category) AS category,
            count(*) AS product_count,
            COALESCE(
              MAX(NULLIF(cs.image_url, '')),
-             (ARRAY_REMOVE(ARRAY_AGG(NULLIF(p.image_url, '') ORDER BY p.available_now DESC), NULL))[1]
+             (ARRAY_REMOVE(ARRAY_AGG(
+                COALESCE(NULLIF(pc.images->>0, ''), NULLIF(pc.image_url, ''))
+                ORDER BY pc.available_now DESC), NULL))[1]
            ) AS image_url
-    FROM products p
-    LEFT JOIN category_settings cs ON cs.category = p.category
-    WHERE p.active AND p.discontinued_at IS NULL AND p.category <> ''
-      AND COALESCE(cs.hidden, FALSE) = FALSE
+    FROM (
+      SELECT p.category, p.images, p.image_url, p.available_now
+      FROM products p WHERE p.active AND p.discontinued_at IS NULL
+      UNION ALL
+      SELECT ec.value, p.images, p.image_url, p.available_now
+      FROM products p, jsonb_array_elements_text(p.extra_categories) ec(value)
+      WHERE p.active AND p.discontinued_at IS NULL
+    ) pc
+    LEFT JOIN category_settings cs ON cs.category = pc.category
+    WHERE pc.category <> '' AND COALESCE(cs.hidden, FALSE) = FALSE
     GROUP BY 1
     ORDER BY 1
   `;
@@ -43,7 +54,13 @@ export async function listStoreProducts(
     WHERE p.active AND p.discontinued_at IS NULL
       AND COALESCE(cs.hidden, FALSE) = FALSE
       AND (${category}::text IS NULL
-           OR COALESCE(NULLIF(cs.display_name, ''), p.category) = ${category})
+           OR COALESCE(NULLIF(cs.display_name, ''), p.category) = ${category}
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(p.extra_categories) ec(value)
+             LEFT JOIN category_settings cs2 ON cs2.category = ec.value
+             WHERE COALESCE(NULLIF(cs2.display_name, ''), ec.value) = ${category}
+               AND COALESCE(cs2.hidden, FALSE) = FALSE
+           ))
       AND (${term}::text IS NULL OR p.name ILIKE ${term} OR p.sku ILIKE ${term}
            OR COALESCE(NULLIF(cs.display_name, ''), p.category) ILIKE ${term})
     ORDER BY COALESCE(NULLIF(cs.display_name, ''), p.category), p.name
