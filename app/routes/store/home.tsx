@@ -91,7 +91,11 @@ export default function Home() {
                       src={cat.image_url}
                       alt={cat.category}
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className={
+                        cat.image_fit === "contain"
+                          ? "h-full w-full bg-white object-contain p-2"
+                          : "h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      }
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-4xl text-muted-foreground/40">

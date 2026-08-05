@@ -7,6 +7,7 @@ export interface CategoryTile {
   category: string;
   product_count: number;
   image_url: string | null;
+  image_fit: "cover" | "contain";
 }
 
 // The storefront works in DISPLAY category names: raw 360 categories are
@@ -25,7 +26,10 @@ export async function listCategories(context: AppLoadContext): Promise<CategoryT
              (ARRAY_REMOVE(ARRAY_AGG(
                 COALESCE(NULLIF(pc.images->>0, ''), NULLIF(pc.image_url, ''))
                 ORDER BY pc.available_now DESC), NULL))[1]
-           ) AS image_url
+           ) AS image_url,
+           -- 'contain' sorts before 'cover', so a merged tile fits the image
+           -- if ANY of its mapped categories asks for fit.
+           MIN(COALESCE(NULLIF(cs.image_fit, ''), 'cover')) AS image_fit
     FROM (
       SELECT p.category, p.images, p.image_url, p.available_now
       FROM products p WHERE p.active AND p.discontinued_at IS NULL
