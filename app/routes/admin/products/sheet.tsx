@@ -132,7 +132,7 @@ export default function ProductSheet() {
             >
               <div className="h-40 w-40 shrink-0 overflow-hidden rounded-md bg-neutral-100">
                 {productPhoto(p) ? (
-                  <img src={productPhoto(p)} alt={p.name} className="h-full w-full object-cover" />
+                  <img src={productPhoto(p)} alt={p.name} className="h-full w-full bg-white object-contain" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-3xl text-neutral-300">
                     ▪

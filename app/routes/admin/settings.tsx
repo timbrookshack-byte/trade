@@ -68,6 +68,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Company details saved." };
   }
 
+  if (intent === "storefront") {
+    await setSettings(context, {
+      product_image_fit: form.get("product_image_fit") === "cover" ? "cover" : "contain",
+    });
+    return { ok: "Storefront display settings saved." };
+  }
+
   if (intent === "payment") {
     const entries: Record<string, string> = {};
     for (const key of [
@@ -218,6 +225,45 @@ export default function SettingsPage() {
             <div className="sm:col-span-2">
               <Button type="submit" disabled={busy}>
                 Save company details
+              </Button>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Storefront display</CardTitle>
+          <CardDescription>
+            How product photos sit in their frames across the whole store — gallery cards,
+            product pages, carts and product sheets.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="flex flex-col gap-4">
+            <input type="hidden" name="intent" value="storefront" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="product_image_fit">Product image layout</Label>
+              <select
+                id="product_image_fit"
+                name="product_image_fit"
+                defaultValue={settings.product_image_fit === "cover" ? "cover" : "contain"}
+                className="h-10 max-w-md rounded-md border border-input bg-card px-3 text-sm"
+              >
+                <option value="contain">
+                  Fit the whole item (no cropping — how Shopify themes do it)
+                </option>
+                <option value="cover">Zoom to fill the frame (crops tall/wide photos)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Fit shows the entire piece on a white background whatever its shape (2:1
+                sideboards, 1:2 lamps). Category tiles have their own per-category setting
+                on the Categories pages.
+              </p>
+            </div>
+            <div>
+              <Button type="submit" disabled={busy}>
+                Save storefront display
               </Button>
             </div>
           </Form>

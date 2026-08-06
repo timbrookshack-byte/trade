@@ -178,7 +178,7 @@ export default function CartPage() {
                 <div key={line.sku} className="flex items-center gap-4 py-3">
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
                     {line.image_url && (
-                      <img src={line.image_url} alt="" className="h-full w-full object-cover" />
+                      <img src={line.image_url} alt="" className="h-full w-full bg-white object-contain" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

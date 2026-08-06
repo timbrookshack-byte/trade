@@ -13,6 +13,7 @@ import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
 import { getStoreProduct, scrubProductForPublic } from "~/lib/store.server";
 import { getBundleComponents } from "~/lib/shopify.server";
 import { getCustomer } from "~/lib/customer-auth.server";
+import { getSetting } from "~/lib/settings.server";
 import { stockStatus } from "~/lib/stock";
 import { RichText } from "~/components/rich-text";
 import { cn, exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
@@ -26,6 +27,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!product) throw new Response("Not found", { status: 404 });
   const customer = await getCustomer(context, request);
   const showPrices = Boolean(customer?.approved);
+  const imageFit = (await getSetting(context, "product_image_fit")) === "cover" ? "cover" : "contain";
   // Bundle contents are public info (names + quantities, never prices).
   const contents =
     product.source === "shopify"
@@ -37,6 +39,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     product: showPrices ? product : scrubProductForPublic(product),
     contents,
     showPrices,
+    imageFit,
     loggedIn: Boolean(customer),
   };
 }
@@ -57,7 +60,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function StoreProduct() {
-  const { product, contents, showPrices, loggedIn } = useLoaderData<typeof loader>();
+  const { product, contents, showPrices, imageFit, loggedIn } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const added = searchParams.get("added");
@@ -99,7 +102,15 @@ export default function StoreProduct() {
           <div className="overflow-hidden rounded-lg border border-border bg-muted">
             <div className="aspect-square w-full">
               {mainImage ? (
-                <img src={mainImage} alt={product.name} className="h-full w-full object-cover" />
+                <img
+                  src={mainImage}
+                  alt={product.name}
+                  className={
+                    imageFit === "contain"
+                      ? "h-full w-full bg-white object-contain p-3"
+                      : "h-full w-full object-cover"
+                  }
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-5xl text-muted-foreground/40">
                   ▪

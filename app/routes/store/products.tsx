@@ -1,6 +1,7 @@
 import { Form, Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listCategories, listStoreProducts, scrubProductForPublic } from "~/lib/store.server";
 import { getCustomer } from "~/lib/customer-auth.server";
+import { getSetting } from "~/lib/settings.server";
 import { productPhoto } from "~/lib/products";
 import { stockStatus } from "~/lib/stock";
 import type { Product } from "~/lib/products";
@@ -16,13 +17,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const category = url.searchParams.get("category") ?? "";
   const search = url.searchParams.get("q") ?? "";
-  const [products, categories, customer] = await Promise.all([
+  const [products, categories, customer, imageFit] = await Promise.all([
     listStoreProducts(context, { category, search }),
     listCategories(context),
     getCustomer(context, request),
+    getSetting(context, "product_image_fit"),
   ]);
   const showPrices = Boolean(customer?.approved);
   return {
+    imageFit: imageFit === "cover" ? "cover" : "contain",
     products: showPrices ? products : products.map(scrubProductForPublic),
     categories: categories.map((c) => c.category),
     category,
@@ -46,7 +49,7 @@ function stockBadgeClass(kind: string) {
 }
 
 export default function StoreProducts() {
-  const { products, categories, category, search, showPrices, loggedIn } =
+  const { products, categories, category, search, showPrices, loggedIn, imageFit } =
     useLoaderData<typeof loader>();
 
   return (
@@ -129,7 +132,11 @@ export default function StoreProducts() {
                       src={productPhoto(p)}
                       alt={p.name}
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className={
+                        imageFit === "contain"
+                          ? "h-full w-full bg-white object-contain p-2"
+                          : "h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      }
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-3xl text-muted-foreground/40">
