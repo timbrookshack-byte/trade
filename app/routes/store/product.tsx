@@ -14,6 +14,7 @@ import { getStoreProduct, scrubProductForPublic } from "~/lib/store.server";
 import { getBundleComponents } from "~/lib/shopify.server";
 import { getCustomer } from "~/lib/customer-auth.server";
 import { stockStatus } from "~/lib/stock";
+import { RichText } from "~/components/rich-text";
 import { cn, exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 
 export function meta({ data }: { data?: { product?: { name: string } } }) {
@@ -130,10 +131,11 @@ export default function StoreProduct() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
               {product.category}
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight">{product.name}</h1>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">SKU {product.sku}</p>
           </div>
 
           {showPrices ? (
@@ -200,7 +202,7 @@ export default function StoreProduct() {
                   <button
                     type="submit"
                     disabled={navigation.state !== "idle"}
-                    className="h-10 rounded-md bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="h-10 rounded-md bg-brand px-6 text-sm font-semibold text-brand-foreground hover:bg-brand/90 disabled:opacity-50"
                   >
                     Add to cart
                   </button>
@@ -214,28 +216,56 @@ export default function StoreProduct() {
             </div>
           ) : (
             <div className="rounded-lg border border-border bg-card p-5">
-              <p className="font-medium">Trade pricing available</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {loggedIn
-                  ? "Your application is under review — pricing unlocks once approved."
-                  : "Log in to see your trade price and current availability."}
-              </p>
-              {!loggedIn && (
-                <div className="mt-4 flex gap-3">
-                  <Link
-                    to="/trade/login"
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                  >
-                    Trade login
-                  </Link>
-                  <Link
-                    to="/trade/apply"
-                    className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-foreground hover:bg-brand/90"
-                  >
-                    Apply for trade
-                  </Link>
-                </div>
+              <p className="text-lg font-semibold">See your trade price</p>
+              {loggedIn ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your application is under review — pricing unlocks once approved.
+                </p>
+              ) : (
+                <>
+                  <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+                    {[
+                      "Trade discounts off RRP across the range",
+                      "Live Brisbane warehouse stock + incoming ETAs",
+                      "Order online, invoiced — no credit card needed",
+                    ].map((line) => (
+                      <li key={line} className="flex gap-2">
+                        <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-4 flex gap-3">
+                    <Link
+                      to="/trade/apply"
+                      className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground hover:bg-brand/90"
+                    >
+                      Apply for a trade account
+                    </Link>
+                    <Link
+                      to="/trade/login"
+                      className="rounded-md border border-input bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent"
+                    >
+                      Trade login
+                    </Link>
+                  </div>
+                </>
               )}
+            </div>
+          )}
+
+          {showPrices && (
+            <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground">
+              {[
+                ["Brisbane warehouse", "Wakerley — collect or deliver"],
+                ["Invoiced ordering", "Pay by EFT or card, no fees on Visa/MC"],
+                ["Trade support", "Real people, quick answers"],
+              ].map(([title, sub]) => (
+                <div key={title} className="rounded-md border border-border bg-card px-3 py-2.5">
+                  <p className="font-semibold text-foreground">{title}</p>
+                  <p className="mt-0.5">{sub}</p>
+                </div>
+              ))}
             </div>
           )}
 
@@ -252,17 +282,25 @@ export default function StoreProduct() {
             </div>
           )}
 
-          {product.description && (
-            <p className="whitespace-pre-line text-muted-foreground">{product.description}</p>
-          )}
+        </div>
+      </div>
 
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-border pt-4 text-sm">
+      <div className="grid gap-10 border-t border-border pt-10 lg:grid-cols-3">
+        {product.description && (
+          <div className="lg:col-span-2">
+            <h2 className="text-xl font-semibold tracking-tight">About this piece</h2>
+            <RichText text={product.description} className="mt-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className={product.description ? "" : "lg:col-span-3"}>
+          <h2 className="text-xl font-semibold tracking-tight">Specifications</h2>
+          <dl className="mt-4 divide-y divide-border rounded-lg border border-border bg-card text-sm">
             {specs
               .filter(([, v]) => v)
               .map(([k, v]) => (
-                <div key={k} className="contents">
+                <div key={k} className="flex justify-between gap-4 px-4 py-2.5">
                   <dt className="text-muted-foreground">{k}</dt>
-                  <dd className="font-medium">{v}</dd>
+                  <dd className="text-right font-medium">{v}</dd>
                 </div>
               ))}
           </dl>

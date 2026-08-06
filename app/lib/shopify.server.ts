@@ -107,12 +107,34 @@ export async function exchangeCodeForToken(input: {
   return payload.access_token;
 }
 
-function stripHtml(html: string) {
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+/**
+ * Shopify HTML → structured plain text. Preserves the copy's structure using
+ * the conventions the storefront's RichText renderer understands: blank-line
+ * paragraphs, "## " headings, "• " bullets. (Flattening everything to one
+ * blob made product pages read like a wall of text.)
+ */
+function htmlToStructuredText(html: string) {
+  let s = html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ");
+  s = s.replace(/<h[1-6][^>]*>/gi, "\n\n## ");
+  s = s.replace(/<\/h[1-6]>/gi, "\n\n");
+  s = s.replace(/<li[^>]*>/gi, "\n• ");
+  s = s.replace(/<\/(p|div|ul|ol|table|tr|blockquote)>/gi, "\n\n");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;|&rsquo;|&lsquo;/gi, "'")
+    .replace(/&ldquo;|&rdquo;/gi, '"')
+    .replace(/&ndash;|&mdash;/gi, "—")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+  s = s
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .join("\n");
+  return s.replace(/\n{3,}/g, "\n\n").trim();
 }
 
 const PRODUCTS_QUERY = `
@@ -199,7 +221,7 @@ async function fetchBundles(
         // Not a bundle — but its richer Shopify copy and full image gallery
         // can enrich the matching 360-sourced product by SKU.
         const plainSku = String(node.variants?.nodes?.[0]?.sku ?? "").trim();
-        const plainDesc = stripHtml(String(node.descriptionHtml ?? ""));
+        const plainDesc = htmlToStructuredText(String(node.descriptionHtml ?? ""));
         if (plainSku && (plainDesc || gallery.length > 0)) {
           enrichments.push({ sku: plainSku, description: plainDesc, images: gallery });
         }
@@ -212,7 +234,7 @@ async function fetchBundles(
       bundles.push({
         sku,
         name: String(node.title ?? "").trim(),
-        description: stripHtml(String(node.descriptionHtml ?? "")),
+        description: htmlToStructuredText(String(node.descriptionHtml ?? "")),
         category: String(node.productType ?? "").trim() || "Packages",
         image_url: String(node.featuredMedia?.preview?.image?.url ?? ""),
         images: gallery,

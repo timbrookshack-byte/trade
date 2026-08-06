@@ -172,7 +172,10 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   shack360 rows and their (richer) copy replaces the 360 description, with
   `overrides.description = "shopify"` (360 sync skips it, Shopify sync keeps
   it fresh). A manual admin edit sets `overrides.description = true` and
-  beats both syncs.
+  beats both syncs. Shopify HTML converts to STRUCTURED text (blank-line
+  paragraphs, `## ` headings, `• ` bullets — `htmlToStructuredText`), rendered
+  by `app/components/rich-text.tsx` on the product page; admin textareas can
+  use the same conventions (hint shown under the description field).
 - **Image galleries**: the sync pulls ALL Shopify media (up to 20, deduped)
   into `products.images` (jsonb array) — for bundles and for SKU-matched 360
   products alike. Gallery data is Shopify-maintained like stock (no overrides

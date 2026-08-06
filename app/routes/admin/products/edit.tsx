@@ -437,6 +437,10 @@ export default function EditProduct() {
                 rows={5}
                 defaultValue={product.description}
               />
+              <p className="text-xs text-muted-foreground">
+                Formatting: blank line = new paragraph · start a line with "• " (or "- ")
+                for a bullet · start a line with "## " for a sub-heading.
+              </p>
               {isSynced && (
                 <p className="text-xs text-muted-foreground">
                   Editing the name or description here stops the sync from updating that
