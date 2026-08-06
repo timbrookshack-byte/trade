@@ -144,6 +144,34 @@ function htmlToStructuredText(html: string) {
   return s.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/**
+ * Retail warranty copy doesn't apply to trade — strip it from all imported
+ * Shopify descriptions (bundles and SKU-matched items alike): any bullet or
+ * paragraph line mentioning warranty, and a warranty heading together with
+ * its entire section (until the next heading).
+ */
+function stripWarrantyCopy(text: string): string {
+  const out: string[] = [];
+  let inWarrantySection = false;
+  for (const line of text.split("\n")) {
+    if (/^##\s/.test(line)) {
+      inWarrantySection = /warrant/i.test(line);
+      if (inWarrantySection) continue;
+    }
+    if (inWarrantySection) continue;
+    if (/warrant/i.test(line)) continue;
+    out.push(line);
+  }
+  // Drop headings left with nothing under them (e.g. every line of their
+  // section mentioned warranty).
+  const cleaned = out.filter((line, i) => {
+    if (!/^##\s/.test(line)) return true;
+    const rest = out.slice(i + 1).find((l) => l.trim() !== "");
+    return rest != null && !/^##\s/.test(rest);
+  });
+  return cleaned.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 const PRODUCTS_QUERY = `
 query BundleProducts($cursor: String, $pageSize: Int!) {
   products(first: $pageSize, after: $cursor) {
@@ -228,7 +256,7 @@ async function fetchBundles(
         // Not a bundle — but its richer Shopify copy and full image gallery
         // can enrich the matching 360-sourced product by SKU.
         const plainSku = String(node.variants?.nodes?.[0]?.sku ?? "").trim();
-        const plainDesc = htmlToStructuredText(String(node.descriptionHtml ?? ""));
+        const plainDesc = stripWarrantyCopy(htmlToStructuredText(String(node.descriptionHtml ?? "")));
         if (plainSku && (plainDesc || gallery.length > 0)) {
           enrichments.push({ sku: plainSku, description: plainDesc, images: gallery });
         }
@@ -241,7 +269,7 @@ async function fetchBundles(
       bundles.push({
         sku,
         name: String(node.title ?? "").trim(),
-        description: htmlToStructuredText(String(node.descriptionHtml ?? "")),
+        description: stripWarrantyCopy(htmlToStructuredText(String(node.descriptionHtml ?? ""))),
         category: String(node.productType ?? "").trim() || "Packages",
         image_url: String(node.featuredMedia?.preview?.image?.url ?? ""),
         images: gallery,
