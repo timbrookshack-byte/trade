@@ -115,6 +115,12 @@ export async function exchangeCodeForToken(input: {
  */
 function htmlToStructuredText(html: string) {
   let s = html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ");
+  // A paragraph that is nothing but a short bold phrase is a pseudo-heading
+  // (Shopify's editor produces these instead of real <h*> tags).
+  s = s.replace(
+    /<(p|div)[^>]*>\s*<(strong|b)[^>]*>\s*([^<]{1,80}?)\s*<\/\2>\s*:?\s*<\/\1>/gi,
+    "\n\n## $3\n\n",
+  );
   s = s.replace(/<h[1-6][^>]*>/gi, "\n\n## ");
   s = s.replace(/<\/h[1-6]>/gi, "\n\n");
   s = s.replace(/<li[^>]*>/gi, "\n• ");
@@ -134,6 +140,7 @@ function htmlToStructuredText(html: string) {
     .split("\n")
     .map((line) => line.replace(/\s+/g, " ").trim())
     .join("\n");
+  s = s.replace(/^## (.+?):$/gm, "## $1");
   return s.replace(/\n{3,}/g, "\n\n").trim();
 }
 
