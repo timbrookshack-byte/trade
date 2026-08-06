@@ -145,21 +145,28 @@ function htmlToStructuredText(html: string) {
 }
 
 /**
- * Retail warranty copy doesn't apply to trade — strip it from all imported
- * Shopify descriptions (bundles and SKU-matched items alike): any bullet or
- * paragraph line mentioning warranty, and a warranty heading together with
- * its entire section (until the next heading).
+ * Retail boilerplate doesn't apply to trade — strip it from all imported
+ * Shopify descriptions (bundles and SKU-matched items alike):
+ *  - whole sections under a warranty / delivery / returns / shipping /
+ *    refund heading (heading + everything until the next heading)
+ *  - any bullet or paragraph line mentioning warranty or known retail
+ *    boilerplate (money-back guarantee, 24-hour dispatch, tracking data,
+ *    out-of-stock ETA contact) even without a heading
  */
-function stripWarrantyCopy(text: string): string {
+const RETAIL_SECTION_HEADING = /warrant|deliver|return|shipping|refund|money.?back/i;
+const RETAIL_LINE =
+  /warrant|money.?back guarantee|dispatch will be 24 hours|receive tracking data|contacted with an eta|^[•\-*\s]*delivery\s*(&|and)\s*returns$/i;
+
+function stripRetailBoilerplate(text: string): string {
   const out: string[] = [];
-  let inWarrantySection = false;
+  let inRetailSection = false;
   for (const line of text.split("\n")) {
     if (/^##\s/.test(line)) {
-      inWarrantySection = /warrant/i.test(line);
-      if (inWarrantySection) continue;
+      inRetailSection = RETAIL_SECTION_HEADING.test(line);
+      if (inRetailSection) continue;
     }
-    if (inWarrantySection) continue;
-    if (/warrant/i.test(line)) continue;
+    if (inRetailSection) continue;
+    if (RETAIL_LINE.test(line)) continue;
     out.push(line);
   }
   // Drop headings left with nothing under them (e.g. every line of their
@@ -256,7 +263,7 @@ async function fetchBundles(
         // Not a bundle — but its richer Shopify copy and full image gallery
         // can enrich the matching 360-sourced product by SKU.
         const plainSku = String(node.variants?.nodes?.[0]?.sku ?? "").trim();
-        const plainDesc = stripWarrantyCopy(htmlToStructuredText(String(node.descriptionHtml ?? "")));
+        const plainDesc = stripRetailBoilerplate(htmlToStructuredText(String(node.descriptionHtml ?? "")));
         if (plainSku && (plainDesc || gallery.length > 0)) {
           enrichments.push({ sku: plainSku, description: plainDesc, images: gallery });
         }
@@ -269,7 +276,7 @@ async function fetchBundles(
       bundles.push({
         sku,
         name: String(node.title ?? "").trim(),
-        description: stripWarrantyCopy(htmlToStructuredText(String(node.descriptionHtml ?? ""))),
+        description: stripRetailBoilerplate(htmlToStructuredText(String(node.descriptionHtml ?? ""))),
         category: String(node.productType ?? "").trim() || "Packages",
         image_url: String(node.featuredMedia?.preview?.image?.url ?? ""),
         images: gallery,
