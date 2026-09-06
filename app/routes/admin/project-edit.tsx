@@ -57,6 +57,32 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const clash = await db`SELECT 1 FROM projects WHERE slug = ${slugInput} AND id <> ${id}`;
   if (clash.length > 0) return { error: `The address "/${slugInput}" is already used by another project.` };
 
+  // Featured products: keep only SKUs that exist in the catalogue, in the
+  // order entered; report typos rather than silently dropping them.
+  const skuInput = [
+    ...new Set(
+      String(form.get("product_skus") ?? "")
+        .split(/[\r\n,]+/)
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 12);
+  let productSkus: string[] = [];
+  let unknownSkus: string[] = [];
+  if (skuInput.length > 0) {
+    const found = await db<{ sku: string }[]>`
+      SELECT sku FROM products WHERE upper(sku) IN ${db(skuInput)}
+    `;
+    const foundBySku = new Map<string, string>(
+      found.map((r: { sku: string }) => [r.sku.toUpperCase(), r.sku]),
+    );
+    productSkus = skuInput.flatMap((s) => {
+      const sku = foundBySku.get(s);
+      return sku ? [sku] : [];
+    });
+    unknownSkus = skuInput.filter((s) => !foundBySku.has(s));
+  }
+
   await db`
     UPDATE projects SET
       title = ${title},
@@ -66,12 +92,18 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       description = ${String(form.get("description") ?? "").trim()},
       cover_image_url = ${String(form.get("cover_image_url") ?? "").trim()},
       images = ${db.json(images)},
+      product_skus = ${db.json(productSkus)},
       published = ${form.get("published") === "on"},
       position = ${Math.trunc(Number(form.get("position")) || 0)},
       updated_at = now()
     WHERE id = ${id}
   `;
-  return { ok: "Project saved." };
+  return {
+    ok:
+      unknownSkus.length > 0
+        ? `Project saved — but these SKUs aren't in the catalogue and were left off: ${unknownSkus.join(", ")}.`
+        : "Project saved.",
+  };
 }
 
 export default function ProjectEdit() {
@@ -148,6 +180,26 @@ export default function ProjectEdit() {
             <div className="flex flex-col gap-2">
               <Label htmlFor="images">Gallery image URLs (one per line)</Label>
               <Textarea id="images" name="images" rows={4} defaultValue={project.images.join("\n")} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="product_skus">
+                Featured products{" "}
+                <span className="font-normal text-muted-foreground">
+                  (SKUs, one per line or comma-separated — shown as "Shop the look" cards
+                  at the bottom of the page, up to 12)
+                </span>
+              </Label>
+              <Textarea
+                id="product_skus"
+                name="product_skus"
+                rows={3}
+                placeholder={"SDS23991UDCT\nBUNDLE-BYRON-01"}
+                defaultValue={(project.product_skus ?? []).join("\n")}
+              />
+              <p className="text-xs text-muted-foreground">
+                Cards show each product's photo, name and (for logged-in customers) trade
+                price and stock. Inactive or discontinued products hide automatically.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-6">
               <label className="flex items-center gap-2 text-sm">

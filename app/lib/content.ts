@@ -17,6 +17,8 @@ export interface Project {
   description: string;
   cover_image_url: string;
   images: string[];
+  /** SKUs of products featured on the project page ("shop the look"). */
+  product_skus: string[];
   published: boolean;
   position: number;
   created_at: string;

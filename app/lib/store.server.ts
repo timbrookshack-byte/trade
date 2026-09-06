@@ -83,6 +83,23 @@ export async function getStoreProduct(context: AppLoadContext, sku: string) {
   return rows[0] ?? null;
 }
 
+/** Visible products for a SKU list (project "shop the look"), in list order. */
+export async function listProductsBySkus(context: AppLoadContext, skus: string[]) {
+  if (skus.length === 0) return [];
+  const db = context.db;
+  const upper = skus.map((s) => s.toUpperCase());
+  const rows = await db<Product[]>`
+    SELECT p.*, COALESCE(NULLIF(cs.display_name, ''), p.category) AS category
+    FROM products p
+    LEFT JOIN category_settings cs ON cs.category = p.category
+    WHERE upper(p.sku) IN ${db(upper)} AND p.active AND p.discontinued_at IS NULL
+      AND COALESCE(cs.hidden, FALSE) = FALSE
+  `;
+  return upper
+    .map((sku) => rows.find((r: Product) => r.sku.toUpperCase() === sku))
+    .filter((r): r is Product => r != null);
+}
+
 /**
  * Strip trade-only data before loader data reaches an unapproved visitor.
  * Loader payloads are serialised into the HTML, so hiding prices in the UI is
