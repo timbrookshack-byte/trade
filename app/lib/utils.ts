@@ -33,3 +33,15 @@ export function formatCurrency(amountIncGst: number) {
 export function exGst(incGst: number) {
   return incGst / 1.1;
 }
+
+/** Normalise an Instagram handle or URL into { handle: "@x", url }. */
+export function instagramInfo(raw: string): { handle: string; url: string } | null {
+  const handle = raw
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^@/, "")
+    .replace(/[/?].*$/, "")
+    .trim();
+  if (!handle) return null;
+  return { handle: `@${handle}`, url: `https://instagram.com/${handle}` };
+}

@@ -6,15 +6,22 @@ import {
   useLoaderData,
   type LoaderFunctionArgs,
 } from "react-router";
+import { Instagram } from "lucide-react";
 import { getCustomer } from "~/lib/customer-auth.server";
 import { readCart } from "~/lib/cart.server";
 import { getSettings } from "~/lib/settings.server";
-import { cn } from "~/lib/utils";
+import { cn, instagramInfo } from "~/lib/utils";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const [customer, settings, cart] = await Promise.all([
     getCustomer(context, request),
-    getSettings(context, ["company_name", "company_phone", "company_email", "company_address"]),
+    getSettings(context, [
+      "company_name",
+      "company_phone",
+      "company_email",
+      "company_address",
+      "company_instagram",
+    ]),
     readCart(context, request),
   ]);
   return {
@@ -31,6 +38,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       phone: settings.company_phone || "",
       email: settings.company_email || "",
       address: settings.company_address || "",
+      instagram: instagramInfo(settings.company_instagram || ""),
     },
   };
 }
@@ -126,6 +134,19 @@ export default function StoreLayout() {
           <div className="space-y-1">
             {company.phone && <p>{company.phone}</p>}
             {company.email && <p>{company.email}</p>}
+            {company.instagram && (
+              <p>
+                <a
+                  href={company.instagram.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 underline-offset-4 hover:underline"
+                >
+                  <Instagram className="size-3.5" />
+                  {company.instagram.handle}
+                </a>
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <p>

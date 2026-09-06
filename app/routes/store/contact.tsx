@@ -8,8 +8,10 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
+import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
 import { getSettings } from "~/lib/settings.server";
 import { getNotifyAddress, queueEmail } from "~/lib/email.server";
+import { instagramInfo } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -28,6 +30,8 @@ export async function loader({ context }: LoaderFunctionArgs) {
     "company_phone",
     "company_email",
     "company_address",
+    "company_instagram",
+    "company_hours",
   ]);
   return {
     company: {
@@ -35,6 +39,8 @@ export async function loader({ context }: LoaderFunctionArgs) {
       phone: settings.company_phone || "",
       email: settings.company_email || "",
       address: settings.company_address || "",
+      instagram: instagramInfo(settings.company_instagram || ""),
+      hours: settings.company_hours || "",
     },
   };
 }
@@ -88,33 +94,100 @@ export default function Contact() {
       </div>
 
       <div className="grid gap-10 lg:grid-cols-[1fr_1.4fr]">
-        <div className="space-y-6 text-sm">
+        <div className="space-y-4">
           {company.phone && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Phone
-              </p>
-              <a href={`tel:${company.phone.replace(/\s/g, "")}`} className="mt-1 block text-lg font-medium hover:underline">
-                {company.phone}
-              </a>
-            </div>
+            <a
+              href={`tel:${company.phone.replace(/\s/g, "")}`}
+              className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-brand/50"
+            >
+              <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
+                <Phone className="size-5" />
+              </span>
+              <span>
+                <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Call the trade team
+                </span>
+                <span className="mt-0.5 block text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
+                  {company.phone}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  Orders, stock checks and card payments over the phone.
+                </span>
+              </span>
+            </a>
           )}
           {company.email && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Email
-              </p>
-              <a href={`mailto:${company.email}`} className="mt-1 block text-lg font-medium hover:underline">
-                {company.email}
-              </a>
-            </div>
+            <a
+              href={`mailto:${company.email}`}
+              className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-brand/50"
+            >
+              <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
+                <Mail className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Email
+                </span>
+                <span className="mt-0.5 block break-all text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
+                  {company.email}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  Quotes, project enquiries and remittance advice.
+                </span>
+              </span>
+            </a>
+          )}
+          {company.instagram && (
+            <a
+              href={company.instagram.url}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-brand/50"
+            >
+              <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
+                <Instagram className="size-5" />
+              </span>
+              <span>
+                <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Instagram
+                </span>
+                <span className="mt-0.5 block text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
+                  {company.instagram.handle}
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  New arrivals, projects and behind the scenes.
+                </span>
+              </span>
+            </a>
           )}
           {company.address && (
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Warehouse & showroom
-              </p>
-              <p className="mt-1 whitespace-pre-line text-lg font-medium">{company.address}</p>
+            <div className="flex items-start gap-4 rounded-xl border border-border bg-card p-5">
+              <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
+                <MapPin className="size-5" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Warehouse & showroom
+                </p>
+                <p className="mt-0.5 whitespace-pre-line text-lg font-semibold leading-snug">
+                  {company.address}
+                </p>
+              </div>
+            </div>
+          )}
+          {company.hours && (
+            <div className="flex items-start gap-4 rounded-xl border border-border bg-card p-5">
+              <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
+                <Clock className="size-5" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Opening hours
+                </p>
+                <p className="mt-0.5 whitespace-pre-line text-base font-medium leading-relaxed">
+                  {company.hours}
+                </p>
+              </div>
             </div>
           )}
         </div>

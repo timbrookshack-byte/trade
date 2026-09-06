@@ -31,6 +31,8 @@ const COMPANY_KEYS = [
   "company_phone",
   "company_email",
   "company_address",
+  "company_instagram",
+  "company_hours",
 ] as const;
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -220,6 +222,28 @@ export default function SettingsPage() {
                 name="company_address"
                 defaultValue={settings.company_address ?? ""}
                 placeholder="Wakerley QLD"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="company_instagram">Instagram</Label>
+              <Input
+                id="company_instagram"
+                name="company_instagram"
+                defaultValue={settings.company_instagram ?? ""}
+                placeholder="@thefurnitureshack"
+              />
+              <p className="text-xs text-muted-foreground">
+                Handle or full URL — shown on the contact page and in the footer.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="company_hours">Opening hours</Label>
+              <Textarea
+                id="company_hours"
+                name="company_hours"
+                rows={3}
+                defaultValue={settings.company_hours ?? ""}
+                placeholder={"Mon–Fri 8:30am–4:30pm\nSat by appointment"}
               />
             </div>
             <div className="sm:col-span-2">
