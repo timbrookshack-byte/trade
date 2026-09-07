@@ -289,7 +289,13 @@ export async function runDiningSetSync(db: Sql, trigger: "cron" | "manual"): Pro
       discontinued: gone.length,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    let message = err instanceof Error ? err.message : String(err);
+    if (/access denied/i.test(message)) {
+      message +=
+        " — the Shopify token is missing the read_metaobjects/read_files scopes. " +
+        "Add them to the app's Admin API scopes in Shopify first, then use " +
+        '"Reconnect to Shopify" in Settings and run this sync again.';
+    }
     await db`
       UPDATE sync_runs SET finished_at = now(), status = 'error', error = ${message}
       WHERE id = ${run.id}
