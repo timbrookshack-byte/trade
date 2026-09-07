@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Form,
   Link,
@@ -9,8 +9,9 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
-import { GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import { requireUser } from "~/lib/auth.server";
+import { DINING_CATEGORY_NAME } from "~/lib/dining.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
@@ -31,6 +32,7 @@ export function meta() {
 interface CategoryRow {
   category: string;
   position: number;
+  dining_sets?: number | null;
   active_count: number;
   total_count: number;
   display_name: string;
@@ -65,7 +67,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     ) counts ON counts.category = cat.category
     ORDER BY COALESCE(cs.position, 1000), cat.category
   `;
-  return { categories };
+  const [dining] = await context.db<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM dining_sets WHERE discontinued_at IS NULL
+  `;
+  return {
+    categories: categories.map((c: CategoryRow) => ({
+      ...c,
+      dining_sets: c.category === DINING_CATEGORY_NAME ? (dining?.n ?? 0) : null,
+    })),
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -129,32 +139,50 @@ export default function CategoriesPage() {
   const fetcher = useFetcher<{ ok?: string }>();
   const busy = navigation.state !== "idle";
 
-  // Drag-and-drop ordering: rows live in local state while dragging; the
-  // order is saved the moment the row is dropped.
+  // Reordering: drag rows by the grip (desktop) or use the arrows (works
+  // everywhere, iPads included — touch screens have no HTML5 drag events).
+  // Either way the order saves the moment it changes.
   const [rows, setRows] = useState<CategoryRow[]>(categories);
+  const rowsRef = useRef(rows);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  useEffect(() => setRows(categories), [categories]);
+  const [dragArmed, setDragArmed] = useState<number | null>(null);
+  useEffect(() => {
+    setRows(categories);
+    rowsRef.current = categories;
+  }, [categories]);
 
+  const saveOrder = (next: CategoryRow[]) => {
+    rowsRef.current = next;
+    setRows(next);
+    fetcher.submit(
+      { intent: "reorder", order: next.map((r) => r.category).join("\n") },
+      { method: "post" },
+    );
+  };
+  const moveRow = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    saveOrder(next);
+  };
   const dragOver = (target: number) => {
     if (dragIdx === null || dragIdx === target) return;
-    setRows((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(target, 0, moved);
-      return next;
-    });
+    const next = [...rowsRef.current];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(target, 0, moved);
+    rowsRef.current = next;
+    setRows(next);
     setDragIdx(target);
   };
   const dropRow = () => {
+    setDragArmed(null);
     if (dragIdx === null) return;
     setDragIdx(null);
-    setRows((current) => {
-      fetcher.submit(
-        { intent: "reorder", order: current.map((r) => r.category).join("\n") },
-        { method: "post" },
-      );
-      return current;
-    });
+    fetcher.submit(
+      { intent: "reorder", order: rowsRef.current.map((r) => r.category).join("\n") },
+      { method: "post" },
+    );
   };
 
   return (
@@ -166,9 +194,9 @@ export default function CategoriesPage() {
           products). Rename how they appear on the storefront — same display name merges
           tiles — set a custom tile image, or hide a category from the site. Without a
           custom image, the tile uses the best-stocked product's photo. Click a category
-          to see its products. Drag the grip to reorder — the storefront tiles follow
-          this order (featured categories always lead), and the new order saves as soon
-          as you drop.
+          to see its products. Reorder with the arrows (or drag the grip with a mouse) —
+          the storefront tiles follow this order, featured categories always lead, and
+          every change saves instantly.
         </p>
       </div>
 
@@ -218,8 +246,13 @@ export default function CategoriesPage() {
                 {rows.map((c: CategoryRow, i: number) => (
                   <TableRow
                     key={c.category}
-                    draggable
-                    onDragStart={() => setDragIdx(i)}
+                    draggable={dragArmed === i}
+                    onDragStart={(e) => {
+                      // Firefox refuses to start a drag without setData.
+                      e.dataTransfer.setData("text/plain", c.category);
+                      e.dataTransfer.effectAllowed = "move";
+                      setDragIdx(i);
+                    }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       dragOver(i);
@@ -228,8 +261,35 @@ export default function CategoriesPage() {
                     onDrop={(e) => e.preventDefault()}
                     className={dragIdx === i ? "bg-accent" : undefined}
                   >
-                    <TableCell className="w-8 cursor-grab text-muted-foreground active:cursor-grabbing">
-                      <GripVertical className="size-4" />
+                    <TableCell className="w-20 whitespace-nowrap text-muted-foreground">
+                      <span className="inline-flex items-center gap-0.5">
+                        <span
+                          className="cursor-grab p-1 active:cursor-grabbing"
+                          onMouseDown={() => setDragArmed(i)}
+                          onMouseUp={() => setDragArmed(null)}
+                          title="Drag to reorder"
+                        >
+                          <GripVertical className="size-4" />
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => moveRow(i, -1)}
+                          disabled={i === 0}
+                          className="rounded p-1 hover:bg-accent hover:text-foreground disabled:opacity-30"
+                          aria-label="Move up"
+                        >
+                          <ArrowUp className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveRow(i, 1)}
+                          disabled={i === rows.length - 1}
+                          className="rounded p-1 hover:bg-accent hover:text-foreground disabled:opacity-30"
+                          aria-label="Move down"
+                        >
+                          <ArrowDown className="size-4" />
+                        </button>
+                      </span>
                     </TableCell>
                     <TableCell className="font-medium">
                       <Link
@@ -241,12 +301,21 @@ export default function CategoriesPage() {
                       <input type="hidden" name="category" value={c.category} />
                     </TableCell>
                     <TableCell>
-                      <Link
-                        to={`/admin/categories/${encodeURIComponent(c.category)}`}
-                        className="text-muted-foreground underline-offset-4 hover:underline"
-                      >
-                        {c.active_count} / {c.total_count}
-                      </Link>
+                      {c.dining_sets != null ? (
+                        <Link
+                          to="/admin/dining-sets"
+                          className="text-muted-foreground underline-offset-4 hover:underline"
+                        >
+                          {c.dining_sets} dining set{c.dining_sets === 1 ? "" : "s"}
+                        </Link>
+                      ) : (
+                        <Link
+                          to={`/admin/categories/${encodeURIComponent(c.category)}`}
+                          className="text-muted-foreground underline-offset-4 hover:underline"
+                        >
+                          {c.active_count} / {c.total_count}
+                        </Link>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input

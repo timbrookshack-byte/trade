@@ -8,6 +8,7 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
+import { DINING_CATEGORY_NAME } from "~/lib/dining.server";
 import { formatCurrency } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -76,8 +77,17 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     ORDER BY (discontinued_at IS NOT NULL), active DESC, name
     LIMIT 1000
   `;
-  if (!settings && products.length === 0) throw new Response("Not found", { status: 404 });
+  const isDining = category === DINING_CATEGORY_NAME;
+  if (!settings && products.length === 0 && !isDining) {
+    throw new Response("Not found", { status: 404 });
+  }
+  const [dining] = isDining
+    ? await db<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM dining_sets WHERE discontinued_at IS NULL
+      `
+    : [];
   return {
+    diningCount: isDining ? (dining?.n ?? 0) : null,
     category,
     settings: settings ?? {
       display_name: "",
@@ -135,7 +145,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function CategoryDetail() {
-  const { category, settings, products } = useLoaderData<typeof loader>();
+  const { category, settings, products, diningCount } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -165,6 +175,19 @@ export default function CategoryDetail() {
       )}
       {actionData && "error" in actionData && actionData.error && (
         <Alert variant="destructive">{actionData.error}</Alert>
+      )}
+
+      {diningCount != null && (
+        <Alert>
+          This category is the storefront home of the dining set configurators —{" "}
+          {diningCount} set{diningCount === 1 ? "" : "s"} synced from Shopify. Its tile
+          links to the dining set builder rather than a product list; manage the sets on
+          the{" "}
+          <Link to="/admin/dining-sets" className="font-medium underline underline-offset-4">
+            Dining Sets page
+          </Link>
+          . The settings below (tile image, layout, feature, hide, order) still apply.
+        </Alert>
       )}
 
       <Card>
