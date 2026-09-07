@@ -4,6 +4,7 @@ export default [
   // Storefront (public + trade customers)
   layout("routes/store/layout.tsx", [
     index("routes/store/home.tsx"),
+    route("categories", "routes/store/categories.tsx"),
     route("products", "routes/store/products.tsx"),
     route("products/:sku", "routes/store/product.tsx"),
     route("dining-sets", "routes/store/dining-sets.tsx"),

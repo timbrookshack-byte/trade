@@ -60,6 +60,7 @@ export default function StoreLayout() {
           </Link>
           <nav className="flex items-center gap-5 text-sm font-medium">
             {[
+              { to: "/categories", label: "Categories" },
               { to: "/projects", label: "Projects" },
               { to: "/about", label: "About" },
               { to: "/faq", label: "FAQ" },
@@ -71,6 +72,7 @@ export default function StoreLayout() {
                 className={({ isActive }) =>
                   cn(
                     "hidden hover:text-primary sm:inline",
+                    item.to === "/categories" && "inline",
                     isActive && "underline underline-offset-8",
                   )
                 }
