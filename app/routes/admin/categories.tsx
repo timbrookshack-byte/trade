@@ -1,12 +1,15 @@
+import { useEffect, useState } from "react";
 import {
   Form,
   Link,
   useActionData,
+  useFetcher,
   useLoaderData,
   useNavigation,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
+import { GripVertical } from "lucide-react";
 import { requireUser } from "~/lib/auth.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -27,6 +30,7 @@ export function meta() {
 
 interface CategoryRow {
   category: string;
+  position: number;
   active_count: number;
   total_count: number;
   display_name: string;
@@ -44,7 +48,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
            COALESCE(counts.total_count, 0)::int AS total_count,
            COALESCE(cs.display_name, '') AS display_name,
            COALESCE(cs.hidden, FALSE) AS hidden,
-           COALESCE(cs.image_url, '') AS image_url
+           COALESCE(cs.image_url, '') AS image_url,
+           COALESCE(cs.position, 1000) AS position
     FROM (
       SELECT category FROM products WHERE category <> ''
       UNION
@@ -58,7 +63,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       FROM products WHERE category <> ''
       GROUP BY category
     ) counts ON counts.category = cat.category
-    ORDER BY cat.category
+    ORDER BY COALESCE(cs.position, 1000), cat.category
   `;
   return { categories };
 }
@@ -67,6 +72,23 @@ export async function action({ request, context }: ActionFunctionArgs) {
   await requireUser(context, request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "save");
+
+  if (intent === "reorder") {
+    const ordered = String(form.get("order") ?? "")
+      .split("\n")
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .slice(0, 200);
+    await context.db.begin(async (tx: typeof context.db) => {
+      for (let i = 0; i < ordered.length; i++) {
+        await tx`
+          INSERT INTO category_settings (category, position) VALUES (${ordered[i]}, ${(i + 1) * 10})
+          ON CONFLICT (category) DO UPDATE SET position = ${(i + 1) * 10}, updated_at = now()
+        `;
+      }
+    });
+    return { ok: "Category order saved." };
+  }
 
   if (intent === "add") {
     const name = String(form.get("new_category") ?? "").trim();
@@ -104,7 +126,36 @@ export default function CategoriesPage() {
   const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const fetcher = useFetcher<{ ok?: string }>();
   const busy = navigation.state !== "idle";
+
+  // Drag-and-drop ordering: rows live in local state while dragging; the
+  // order is saved the moment the row is dropped.
+  const [rows, setRows] = useState<CategoryRow[]>(categories);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  useEffect(() => setRows(categories), [categories]);
+
+  const dragOver = (target: number) => {
+    if (dragIdx === null || dragIdx === target) return;
+    setRows((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(dragIdx, 1);
+      next.splice(target, 0, moved);
+      return next;
+    });
+    setDragIdx(target);
+  };
+  const dropRow = () => {
+    if (dragIdx === null) return;
+    setDragIdx(null);
+    setRows((current) => {
+      fetcher.submit(
+        { intent: "reorder", order: current.map((r) => r.category).join("\n") },
+        { method: "post" },
+      );
+      return current;
+    });
+  };
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -115,7 +166,9 @@ export default function CategoriesPage() {
           products). Rename how they appear on the storefront — same display name merges
           tiles — set a custom tile image, or hide a category from the site. Without a
           custom image, the tile uses the best-stocked product's photo. Click a category
-          to see its products.
+          to see its products. Drag the grip to reorder — the storefront tiles follow
+          this order (featured categories always lead), and the new order saves as soon
+          as you drop.
         </p>
       </div>
 
@@ -146,6 +199,7 @@ export default function CategoriesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8"></TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Products (active/total)</TableHead>
                   <TableHead>Display name on storefront</TableHead>
@@ -154,15 +208,29 @@ export default function CategoriesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.length === 0 && (
+                {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                       No categories yet — run a product sync first.
                     </TableCell>
                   </TableRow>
                 )}
-                {categories.map((c: CategoryRow) => (
-                  <TableRow key={c.category}>
+                {rows.map((c: CategoryRow, i: number) => (
+                  <TableRow
+                    key={c.category}
+                    draggable
+                    onDragStart={() => setDragIdx(i)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      dragOver(i);
+                    }}
+                    onDragEnd={dropRow}
+                    onDrop={(e) => e.preventDefault()}
+                    className={dragIdx === i ? "bg-accent" : undefined}
+                  >
+                    <TableCell className="w-8 cursor-grab text-muted-foreground active:cursor-grabbing">
+                      <GripVertical className="size-4" />
+                    </TableCell>
                     <TableCell className="font-medium">
                       <Link
                         to={`/admin/categories/${encodeURIComponent(c.category)}`}

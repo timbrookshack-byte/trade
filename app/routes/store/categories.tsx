@@ -77,7 +77,9 @@ export async function loader({ context }: LoaderFunctionArgs) {
   }
   tiles.sort(
     (a, b) =>
-      Number(b.featured) - Number(a.featured) || a.category.localeCompare(b.category),
+      Number(b.featured) - Number(a.featured) ||
+      a.position - b.position ||
+      a.category.localeCompare(b.category),
   );
   return { tiles };
 }
