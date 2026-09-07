@@ -39,11 +39,24 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   await requireUser(context, request);
   const db = context.db;
   const id = Number(params.id);
+  const [project] = await db<Project[]>`SELECT * FROM projects WHERE id = ${id}`;
+  if (!project) throw new Response("Not found", { status: 404 });
   const form = await request.formData();
 
   if (form.get("intent") === "delete") {
     await db`DELETE FROM projects WHERE id = ${id}`;
     return redirect("/admin/projects");
+  }
+
+  // Optimistic concurrency: projects only change via this form, so the row's
+  // updated_at is a reliable "changed since you opened it" token.
+  const loadedAt = String(form.get("loaded_at") ?? "");
+  if (loadedAt && new Date(loadedAt).getTime() !== new Date(project.updated_at).getTime()) {
+    return {
+      error:
+        "This project was changed by someone else since you opened it. " +
+        "Reload the page to see the latest version, then re-apply your edit.",
+    };
   }
 
   const title = String(form.get("title") ?? "").trim();
@@ -151,6 +164,7 @@ export default function ProjectEdit() {
         </CardHeader>
         <CardContent>
           <Form method="post" className="flex flex-col gap-4">
+            <input type="hidden" name="loaded_at" value={project.updated_at} />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="title">Title</Label>

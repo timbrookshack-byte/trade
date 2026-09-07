@@ -163,6 +163,42 @@ export async function getProduct(db: Sql, id: number) {
   return rows[0] ?? null;
 }
 
+/**
+ * Optimistic-concurrency stamp for the product edit form: a hash of ONLY the
+ * fields that form edits. Deliberately excludes stock/sync bookkeeping so the
+ * 15-minute stock sync never triggers a false "changed while you were editing"
+ * conflict — only a real edit to the same fields does (including a sync
+ * refreshing the description).
+ */
+export async function productEditStamp(p: {
+  sku: string;
+  name: string;
+  description: string;
+  category: string;
+  trade_price: string | null;
+  active: boolean;
+  extra_categories: string[];
+  dimensions?: string | null;
+  image_url?: string | null;
+}) {
+  const data = JSON.stringify([
+    p.sku,
+    p.name,
+    p.description,
+    p.category,
+    p.trade_price,
+    p.active,
+    p.extra_categories,
+    p.dimensions ?? "",
+    p.image_url ?? "",
+  ]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+  return [...new Uint8Array(digest)]
+    .slice(0, 12)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function countNewFrom360(db: Sql) {
   const [row] = await db<{ count: number }[]>`
     SELECT count(*) FROM products

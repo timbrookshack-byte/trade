@@ -9,7 +9,7 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
-import { defaultTradePrice, getProduct } from "~/lib/products.server";
+import { defaultTradePrice, getProduct, productEditStamp } from "~/lib/products.server";
 import { getBundleComponents, type BundleComponentRow } from "~/lib/shopify.server";
 import { getSetting } from "~/lib/settings.server";
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
@@ -52,7 +52,14 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       ORDER BY category
     `
   ).map((r: { category: string }) => r.category);
-  return { product, discountPercent, suggested, components, allCategories };
+  return {
+    product,
+    discountPercent,
+    suggested,
+    components,
+    allCategories,
+    editStamp: await productEditStamp(product),
+  };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -76,6 +83,17 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       WHERE id = ${id}
     `;
     return { ok: `Trade price set to the default (RRP − ${discount}%).` };
+  }
+
+  // Optimistic concurrency: reject the save if the editable fields changed
+  // since this form was opened (a teammate's save, or a sync updating copy).
+  const submittedStamp = String(form.get("edit_stamp") ?? "");
+  if (submittedStamp && submittedStamp !== (await productEditStamp(product))) {
+    return {
+      error:
+        "This product was changed since you opened it — by a teammate or a sync. " +
+        "Reload the page to see the latest version, then re-apply your edit.",
+    };
   }
 
   const priceRaw = String(form.get("trade_price") ?? "").trim().replace(/[$,\s]/g, "");
@@ -160,7 +178,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function EditProduct() {
-  const { product, discountPercent, suggested, components, allCategories } = useLoaderData<typeof loader>();
+  const { product, discountPercent, suggested, components, allCategories, editStamp } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -344,6 +363,7 @@ export default function EditProduct() {
             </Form>
           )}
           <Form method="post" className="flex flex-col gap-4">
+            <input type="hidden" name="edit_stamp" value={editStamp} />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="trade_price">Trade price (inc GST)</Label>

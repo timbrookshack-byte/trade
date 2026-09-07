@@ -53,13 +53,21 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 
   const db = context.db;
   const [settings] = await db<
-    { display_name: string; hidden: boolean; image_url: string; image_fit: string; featured: boolean }[]
+    {
+      display_name: string;
+      hidden: boolean;
+      image_url: string;
+      image_fit: string;
+      featured: boolean;
+      updated_at: string;
+    }[]
   >`
     SELECT COALESCE(display_name, '') AS display_name,
            COALESCE(hidden, FALSE) AS hidden,
            COALESCE(image_url, '') AS image_url,
            COALESCE(image_fit, 'cover') AS image_fit,
-           COALESCE(featured, FALSE) AS featured
+           COALESCE(featured, FALSE) AS featured,
+           updated_at::text AS updated_at
     FROM category_settings WHERE category = ${category}
   `;
   const products = await db<CategoryProduct[]>`
@@ -77,6 +85,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       image_url: "",
       image_fit: "cover",
       featured: false,
+      updated_at: "new",
     },
     products,
   };
@@ -87,6 +96,24 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const category = params.category ?? "";
   if (!category) throw new Response("Not found", { status: 404 });
   const form = await request.formData();
+
+  // Optimistic concurrency: reject if another save created/changed this
+  // category's settings row since the form was opened.
+  const loadedAt = String(form.get("loaded_at") ?? "");
+  if (loadedAt) {
+    const [current] = await context.db<{ updated_at: string }[]>`
+      SELECT updated_at::text AS updated_at FROM category_settings WHERE category = ${category}
+    `;
+    const currentToken = current?.updated_at ?? "new";
+    if (loadedAt !== currentToken) {
+      return {
+        error:
+          "These category settings were changed by someone else since you opened the " +
+          "page. Reload to see the latest, then re-apply your edit.",
+      } as const;
+    }
+  }
+
   const imageFit = form.get("image_fit") === "contain" ? "contain" : "cover";
   await context.db`
     INSERT INTO category_settings (category, display_name, hidden, image_url, image_fit, featured)
@@ -133,7 +160,12 @@ export default function CategoryDetail() {
         </p>
       </div>
 
-      {actionData?.ok && <Alert variant="success">{actionData.ok}</Alert>}
+      {actionData && "ok" in actionData && actionData.ok && (
+        <Alert variant="success">{actionData.ok}</Alert>
+      )}
+      {actionData && "error" in actionData && actionData.error && (
+        <Alert variant="destructive">{actionData.error}</Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -145,6 +177,7 @@ export default function CategoryDetail() {
         </CardHeader>
         <CardContent>
           <Form method="post" className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="loaded_at" value={settings.updated_at} />
             <div className="flex flex-col gap-2">
               <Label htmlFor="display_name">Display name on storefront</Label>
               <Input
