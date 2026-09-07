@@ -1,5 +1,6 @@
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listCategories } from "~/lib/store.server";
+import { getDiningCategoryTile } from "~/lib/dining.server";
 import { getCustomer } from "~/lib/customer-auth.server";
 
 export function meta() {
@@ -14,11 +15,18 @@ export function meta() {
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const [categories, customer] = await Promise.all([
+  const [categories, diningTile, customer] = await Promise.all([
     listCategories(context),
+    getDiningCategoryTile(context.db),
     getCustomer(context, request),
   ]);
-  return { categories, loggedIn: Boolean(customer) };
+  const tiles = categories.map((c) => ({
+    ...c,
+    href: `/products?category=${encodeURIComponent(c.category)}`,
+  }));
+  if (diningTile) tiles.push({ ...diningTile, href: "/dining-sets" });
+  tiles.sort((a, b) => a.category.localeCompare(b.category));
+  return { categories: tiles, loggedIn: Boolean(customer) };
 }
 
 const BENEFITS = [
@@ -82,7 +90,7 @@ export default function Home() {
             {categories.map((cat) => (
               <Link
                 key={cat.category}
-                to={`/products?category=${encodeURIComponent(cat.category)}`}
+                to={cat.href}
                 className="group relative overflow-hidden rounded-lg border border-border bg-card"
               >
                 <div className="aspect-[4/3] w-full overflow-hidden bg-muted">

@@ -349,3 +349,47 @@ export async function getDiningSet(db: Sql, slug: string) {
   `;
   return { set, chairs };
 }
+
+/**
+ * The dining sets appear on the storefront as a CATEGORY tile ("Commercial
+ * Outdoor Dining Sets") linking to /dining-sets, alongside the product
+ * categories. A category_settings row with this raw name lets the team
+ * rename/hide it or set a custom tile image, exactly like real categories.
+ */
+export const DINING_CATEGORY_NAME = "Commercial Outdoor Dining Sets";
+
+export interface DiningCategoryTile {
+  category: string;
+  product_count: number;
+  image_url: string | null;
+  image_fit: "cover" | "contain";
+}
+
+export async function getDiningCategoryTile(db: Sql): Promise<DiningCategoryTile | null> {
+  const [row] = await db<
+    {
+      n: number;
+      hero: string | null;
+      display_name: string | null;
+      hidden: boolean | null;
+      image_url: string | null;
+      image_fit: string | null;
+    }[]
+  >`
+    SELECT
+      (SELECT count(*)::int FROM dining_sets WHERE active AND discontinued_at IS NULL) AS n,
+      (SELECT hero_image_url FROM dining_sets
+        WHERE active AND discontinued_at IS NULL AND hero_image_url <> ''
+        ORDER BY title LIMIT 1) AS hero,
+      cs.display_name, cs.hidden, cs.image_url, cs.image_fit
+    FROM (SELECT 1) one
+    LEFT JOIN category_settings cs ON cs.category = ${DINING_CATEGORY_NAME}
+  `;
+  if (!row || row.n === 0 || row.hidden) return null;
+  return {
+    category: row.display_name?.trim() || DINING_CATEGORY_NAME,
+    product_count: row.n,
+    image_url: row.image_url?.trim() || row.hero || null,
+    image_fit: row.image_fit === "contain" ? "contain" : "cover",
+  };
+}

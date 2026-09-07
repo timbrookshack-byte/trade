@@ -24,7 +24,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     ]),
     readCart(context, request),
     context.db<{ n: number }[]>`
-      SELECT count(*)::int AS n FROM dining_sets WHERE active AND discontinued_at IS NULL
+      SELECT count(*)::int AS n FROM dining_sets
+      WHERE active AND discontinued_at IS NULL
+        AND NOT COALESCE((SELECT hidden FROM category_settings
+                          WHERE category = 'Commercial Outdoor Dining Sets'), FALSE)
     `,
   ]);
   return {

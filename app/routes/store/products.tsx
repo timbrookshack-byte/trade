@@ -1,5 +1,6 @@
 import { Form, Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listCategories, listStoreProducts, scrubProductForPublic } from "~/lib/store.server";
+import { getDiningCategoryTile } from "~/lib/dining.server";
 import { getCustomer } from "~/lib/customer-auth.server";
 import { getSetting } from "~/lib/settings.server";
 import { ProductCard } from "~/components/product-card";
@@ -16,15 +17,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const category = url.searchParams.get("category") ?? "";
   const search = url.searchParams.get("q") ?? "";
-  const [products, categories, customer, imageFit] = await Promise.all([
+  const [products, categories, diningTile, customer, imageFit] = await Promise.all([
     listStoreProducts(context, { category, search }),
     listCategories(context),
+    getDiningCategoryTile(context.db),
     getCustomer(context, request),
     getSetting(context, "product_image_fit"),
   ]);
   const showPrices = Boolean(customer?.approved);
   return {
     imageFit: imageFit === "cover" ? "cover" : "contain",
+    diningCategory: diningTile?.category ?? null,
     products: showPrices ? products : products.map(scrubProductForPublic),
     categories: categories.map((c) => c.category),
     category,
@@ -35,7 +38,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 export default function StoreProducts() {
-  const { products, categories, category, search, showPrices, loggedIn, imageFit } =
+  const { products, categories, category, search, showPrices, loggedIn, imageFit, diningCategory } =
     useLoaderData<typeof loader>();
 
   return (
@@ -89,6 +92,14 @@ export default function StoreProducts() {
             {cat}
           </Link>
         ))}
+        {diningCategory && (
+          <Link
+            to="/dining-sets"
+            className="rounded-full border border-border bg-card px-3.5 py-1.5 text-sm hover:bg-accent"
+          >
+            {diningCategory}
+          </Link>
+        )}
         <Form method="get" className="ml-auto flex gap-2">
           {category && <input type="hidden" name="category" value={category} />}
           <Input name="q" placeholder="Search products…" defaultValue={search} className="w-56" />
