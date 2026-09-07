@@ -89,6 +89,41 @@ export async function applyDefaultPricing(db: Sql, discountPercent: number) {
 
 /**
  * Recompute cached stock for Shopify bundles from their components' cached
+ * Bundle pricing is computed from components: RRP = components at full RRP,
+ * trade price = components at their trade prices (each already carrying the
+ * trade discount). Skipped when any component is missing a trade price, or
+ * when the team has manually priced the bundle (overrides.trade_price).
+ * Called after every sync, like bundle stock.
+ */
+export async function recomputeBundlePricing(db: Sql) {
+  const rows = await db<{ sku: string }[]>`
+    UPDATE products b SET
+      trade_price = round(c.trade_sum::numeric, 2),
+      rrp_reference = CASE WHEN c.rrp_complete THEN round(c.rrp_sum::numeric, 2)
+                           ELSE b.rrp_reference END,
+      updated_at = now()
+    FROM (
+      SELECT bc.bundle_id,
+             SUM(bc.quantity * p.trade_price) AS trade_sum,
+             SUM(bc.quantity * p.rrp_reference) AS rrp_sum,
+             bool_and(p.trade_price IS NOT NULL) AS trade_complete,
+             bool_and(p.rrp_reference IS NOT NULL) AS rrp_complete
+      FROM bundle_components bc
+      LEFT JOIN products p ON upper(p.sku) = upper(bc.component_sku)
+      GROUP BY bc.bundle_id
+    ) c
+    WHERE b.id = c.bundle_id AND b.source = 'shopify'
+      AND NOT (b.overrides ? 'trade_price')
+      AND c.trade_complete
+      AND (b.trade_price IS DISTINCT FROM round(c.trade_sum::numeric, 2)
+           OR (c.rrp_complete AND b.rrp_reference IS DISTINCT FROM round(c.rrp_sum::numeric, 2)))
+    RETURNING b.sku
+  `;
+  if (rows.length > 0) console.log(`bundle pricing recomputed for ${rows.length} bundle(s)`);
+  return rows.length;
+}
+
+/**
  * 360 stock: min(floor(component available / qty)); 0 if any component is
  * missing from the portal or discontinued. Called after every sync.
  */

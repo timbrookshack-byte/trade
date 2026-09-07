@@ -1,5 +1,9 @@
 import type { Sql } from "./db.server";
-import { applyStockAutoToggle, recomputeBundleStock } from "./products.server";
+import {
+  applyStockAutoToggle,
+  recomputeBundlePricing,
+  recomputeBundleStock,
+} from "./products.server";
 import { runScheduledShopifySync } from "./shopify.server";
 
 /**
@@ -154,8 +158,11 @@ export async function runSync(db: Sql, trigger: "cron" | "manual"): Promise<Sync
           `
         : [];
 
-    // Bundle availability derives from component stock — refresh it, then
-    // apply the stock rule (sold out + nothing incoming → off the storefront).
+    // Bundle pricing and availability derive from components — refresh both,
+    // then apply the stock rule (sold out + nothing incoming → off the
+    // storefront). Pricing tracks component price changes (e.g. RRP moves
+    // from 360, admin repricing) automatically.
+    await recomputeBundlePricing(db);
     await recomputeBundleStock(db);
     await applyStockAutoToggle(db);
 

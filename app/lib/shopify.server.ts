@@ -1,5 +1,9 @@
 import type { Sql } from "./db.server";
-import { applyStockAutoToggle, defaultTradePrice, recomputeBundleStock } from "./products.server";
+import {
+  applyStockAutoToggle,
+  recomputeBundlePricing,
+  recomputeBundleStock,
+} from "./products.server";
 import type { SyncResult } from "./sync.server";
 
 /**
@@ -24,7 +28,6 @@ interface ShopifyBundle {
   category: string;
   image_url: string;
   images: string[];
-  rrp: number | null;
   components: { sku: string; quantity: number }[];
 }
 
@@ -272,15 +275,16 @@ async function fetchBundles(
 
       const variant = node.variants?.nodes?.[0];
       const sku = String(variant?.sku ?? "").trim() || `SHOPIFY-${String(node.id).split("/").pop()}`;
-      const price = Number(variant?.price);
+      const title = String(node.title ?? "").trim();
       bundles.push({
         sku,
-        name: String(node.title ?? "").trim(),
+        name: title,
         description: stripRetailBoilerplate(htmlToStructuredText(String(node.descriptionHtml ?? ""))),
-        category: String(node.productType ?? "").trim() || "Packages",
+        // House rule: "stylist" bundles are cushion packages; the rest are
+        // lounge packages. (Shopify's product type is blank on these.)
+        category: /stylist/i.test(title) ? "Cushion Packages" : "Lounge Packages",
         image_url: String(node.featuredMedia?.preview?.image?.url ?? ""),
         images: gallery,
-        rrp: Number.isFinite(price) && price > 0 ? price : null,
         components,
       });
     }
@@ -374,23 +378,19 @@ export async function runShopifyBundleSync(
     let created = 0;
     let updated = 0;
     const now = new Date();
-    const [discountRow] = await db<{ value: string }[]>`
-      SELECT value FROM settings WHERE key = 'trade_discount_percent'
-    `;
-    const discountPercent = Number(discountRow?.value) || 37.5;
+    const newBundleIds: number[] = [];
 
     for (const bundle of bundles) {
       const rows = (await db`
-        INSERT INTO products (sku, source, name, category, description, image_url, images, rrp_reference, stock_synced_at)
+        INSERT INTO products (sku, source, name, category, description, image_url, images, stock_synced_at)
         VALUES (${bundle.sku}, 'shopify', ${bundle.name}, ${bundle.category},
-                ${bundle.description}, ${bundle.image_url}, ${db.json(bundle.images)}, ${bundle.rrp}, ${now})
+                ${bundle.description}, ${bundle.image_url}, ${db.json(bundle.images)}, ${now})
         ON CONFLICT (sku) DO UPDATE SET
           name = CASE WHEN products.overrides ? 'name' THEN products.name ELSE EXCLUDED.name END,
           description = CASE WHEN products.overrides ? 'description' THEN products.description ELSE EXCLUDED.description END,
           category = CASE WHEN products.overrides ? 'category' THEN products.category ELSE EXCLUDED.category END,
           image_url = EXCLUDED.image_url,
           images = EXCLUDED.images,
-          rrp_reference = EXCLUDED.rrp_reference,
           stock_synced_at = EXCLUDED.stock_synced_at,
           discontinued_at = NULL,
           updated_at = now()
@@ -401,18 +401,7 @@ export async function runShopifyBundleSync(
       if (!row) continue; // SKU collision with a non-shopify product — skip
       if (row.inserted) {
         created++;
-        // NEW bundles go live by default: priced at the default trade formula
-        // (Shopify price − trade discount) and active — the stock auto-toggle
-        // below pulls them straight back off if components are short. The
-        // team can reprice/deactivate any time; sync never touches either
-        // again after this.
-        if (bundle.rrp != null) {
-          await db`
-            UPDATE products
-            SET trade_price = ${defaultTradePrice(bundle.rrp, discountPercent)}, active = TRUE
-            WHERE id = ${row.id}
-          `;
-        }
+        newBundleIds.push(row.id);
       } else updated++;
 
       await db`DELETE FROM bundle_components WHERE bundle_id = ${row.id}`;
@@ -425,6 +414,17 @@ export async function runShopifyBundleSync(
             DO UPDATE SET quantity = bundle_components.quantity + EXCLUDED.quantity
         `;
       }
+    }
+
+    // Bundle pricing is computed from components (RRP = components at full
+    // RRP; trade = components at their trade prices), then new bundles go
+    // live — the stock auto-toggle below pulls any that can't be built.
+    await recomputeBundlePricing(db);
+    if (newBundleIds.length > 0) {
+      await db`
+        UPDATE products SET active = TRUE, updated_at = now()
+        WHERE id IN ${db(newBundleIds)} AND trade_price IS NOT NULL AND NOT active
+      `;
     }
 
     const skus = bundles.map((b) => b.sku);

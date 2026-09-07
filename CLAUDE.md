@@ -159,8 +159,17 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   `shopify_admin_token`. A manually-issued shpat token pasted into that
   settings row also works — the sync only reads `shopify_admin_token`.
 - Bundles land as products with `source = 'shopify'`; component SKUs + qtys
-  go to `bundle_components`. Same rules as the 360 sync: trade_price and
-  override-flagged copy never touched; vanished bundles → `discontinued_at`.
+  go to `bundle_components`. Override-flagged copy never touched; vanished
+  bundles → `discontinued_at`.
+- **Bundle classification**: title contains "stylist" → `Cushion Packages`,
+  everything else → `Lounge Packages` (Shopify productType is ignored —
+  it's blank on these). Manual category overrides still win.
+- **Bundle pricing is COMPUTED from components** (`recomputeBundlePricing`,
+  runs after both syncs): RRP = Σ component RRP × qty; trade price =
+  Σ component trade_price × qty. Skipped when any component lacks a trade
+  price or when `overrides.trade_price` is set (a manual price edit or
+  "apply default" on a bundle sets that flag). New bundles activate on
+  arrival once priced; the stock rule can pull them straight back off.
 - **Bundle `available_now` is computed**, not synced:
   min(floor(component stock / qty)), 0 if any component is missing from the
   portal or discontinued. `recomputeBundleStock` runs after BOTH syncs.

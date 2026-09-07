@@ -68,7 +68,12 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
     const price = defaultTradePrice(Number(product.rrp_reference), discount);
     await db`
-      UPDATE products SET trade_price = ${price}, updated_at = now() WHERE id = ${id}
+      UPDATE products SET trade_price = ${price},
+        overrides = CASE WHEN source = 'shopify'
+                         THEN overrides || '{"trade_price": true}'::jsonb
+                         ELSE overrides END,
+        updated_at = now()
+      WHERE id = ${id}
     `;
     return { ok: `Trade price set to the default (RRP − ${discount}%).` };
   }
@@ -99,6 +104,12 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const overrides = { ...product.overrides };
     if (name !== product.name) overrides.name = true;
     if (description !== product.description) overrides.description = true;
+    // Bundle prices are computed from components each sync — a manual price
+    // becomes an override so the recompute stops touching it.
+    if (product.source === "shopify") {
+      const currentPrice = product.trade_price != null ? Number(product.trade_price) : null;
+      if (tradePrice !== currentPrice) overrides.trade_price = true;
+    }
     // Bundles may recategorise locally; 360 products keep their 360 category.
     let category = product.category;
     if (product.source === "shopify") {
@@ -250,7 +261,9 @@ export default function EditProduct() {
             <CardTitle>Bundle contents (from Shopify)</CardTitle>
             <CardDescription>
               Availability above is the most this bundle can be assembled from component
-              stock. Components missing from the portal make the bundle unavailable.
+              stock; components missing from the portal make the bundle unavailable. The
+              bundle's RRP and trade price are computed from these components on every
+              sync — setting a price manually here stops that and keeps your price.
             </CardDescription>
           </CardHeader>
           <CardContent>
