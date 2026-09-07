@@ -363,6 +363,7 @@ export interface DiningCategoryTile {
   product_count: number;
   image_url: string | null;
   image_fit: "cover" | "contain";
+  featured: boolean;
 }
 
 export async function getDiningCategoryTile(db: Sql): Promise<DiningCategoryTile | null> {
@@ -374,6 +375,7 @@ export async function getDiningCategoryTile(db: Sql): Promise<DiningCategoryTile
       hidden: boolean | null;
       image_url: string | null;
       image_fit: string | null;
+      featured: boolean | null;
     }[]
   >`
     SELECT
@@ -381,7 +383,7 @@ export async function getDiningCategoryTile(db: Sql): Promise<DiningCategoryTile
       (SELECT hero_image_url FROM dining_sets
         WHERE active AND discontinued_at IS NULL AND hero_image_url <> ''
         ORDER BY title LIMIT 1) AS hero,
-      cs.display_name, cs.hidden, cs.image_url, cs.image_fit
+      cs.display_name, cs.hidden, cs.image_url, cs.image_fit, cs.featured
     FROM (SELECT 1) one
     LEFT JOIN category_settings cs ON cs.category = ${DINING_CATEGORY_NAME}
   `;
@@ -391,5 +393,6 @@ export async function getDiningCategoryTile(db: Sql): Promise<DiningCategoryTile
     product_count: row.n,
     image_url: row.image_url?.trim() || row.hero || null,
     image_fit: row.image_fit === "contain" ? "contain" : "cover",
+    featured: Boolean(row.featured),
   };
 }

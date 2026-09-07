@@ -53,12 +53,13 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 
   const db = context.db;
   const [settings] = await db<
-    { display_name: string; hidden: boolean; image_url: string; image_fit: string }[]
+    { display_name: string; hidden: boolean; image_url: string; image_fit: string; featured: boolean }[]
   >`
     SELECT COALESCE(display_name, '') AS display_name,
            COALESCE(hidden, FALSE) AS hidden,
            COALESCE(image_url, '') AS image_url,
-           COALESCE(image_fit, 'cover') AS image_fit
+           COALESCE(image_fit, 'cover') AS image_fit,
+           COALESCE(featured, FALSE) AS featured
     FROM category_settings WHERE category = ${category}
   `;
   const products = await db<CategoryProduct[]>`
@@ -70,7 +71,13 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!settings && products.length === 0) throw new Response("Not found", { status: 404 });
   return {
     category,
-    settings: settings ?? { display_name: "", hidden: false, image_url: "", image_fit: "cover" },
+    settings: settings ?? {
+      display_name: "",
+      hidden: false,
+      image_url: "",
+      image_fit: "cover",
+      featured: false,
+    },
     products,
   };
 }
@@ -82,17 +89,19 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const form = await request.formData();
   const imageFit = form.get("image_fit") === "contain" ? "contain" : "cover";
   await context.db`
-    INSERT INTO category_settings (category, display_name, hidden, image_url, image_fit)
+    INSERT INTO category_settings (category, display_name, hidden, image_url, image_fit, featured)
     VALUES (${category},
             ${String(form.get("display_name") ?? "").trim()},
             ${form.get("hidden") === "on"},
             ${String(form.get("image_url") ?? "").trim()},
-            ${imageFit})
+            ${imageFit},
+            ${form.get("featured") === "on"})
     ON CONFLICT (category) DO UPDATE
       SET display_name = EXCLUDED.display_name,
           hidden = EXCLUDED.hidden,
           image_url = EXCLUDED.image_url,
           image_fit = EXCLUDED.image_fit,
+          featured = EXCLUDED.featured,
           updated_at = now()
   `;
   return { ok: "Category settings saved." };
@@ -179,6 +188,15 @@ export default function CategoryDetail() {
                 on white where cropping cuts the piece off.
               </p>
             </div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                name="featured"
+                defaultChecked={settings.featured}
+                className="size-4 accent-primary"
+              />
+              Feature this category — double-width tile at the top of the home page
+            </label>
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"

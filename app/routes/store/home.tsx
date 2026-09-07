@@ -25,7 +25,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     href: `/products?category=${encodeURIComponent(c.category)}`,
   }));
   if (diningTile) tiles.push({ ...diningTile, href: "/dining-sets" });
-  tiles.sort((a, b) => a.category.localeCompare(b.category));
+  // Featured categories lead the grid as double-width tiles.
+  tiles.sort(
+    (a, b) =>
+      Number(b.featured) - Number(a.featured) || a.category.localeCompare(b.category),
+  );
   return { categories: tiles, loggedIn: Boolean(customer) };
 }
 
@@ -91,9 +95,19 @@ export default function Home() {
               <Link
                 key={cat.category}
                 to={cat.href}
-                className="group relative overflow-hidden rounded-lg border border-border bg-card"
+                className={
+                  cat.featured
+                    ? "group relative col-span-2 overflow-hidden rounded-lg border border-border bg-card"
+                    : "group relative overflow-hidden rounded-lg border border-border bg-card"
+                }
               >
-                <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                <div
+                  className={
+                    cat.featured
+                      ? "aspect-[8/3] w-full overflow-hidden bg-muted"
+                      : "aspect-[4/3] w-full overflow-hidden bg-muted"
+                  }
+                >
                   {cat.image_url ? (
                     <img
                       src={cat.image_url}
