@@ -2,6 +2,7 @@ import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { listCategories } from "~/lib/store.server";
 import { getDiningCategoryTile } from "~/lib/dining.server";
 import { getCustomer } from "~/lib/customer-auth.server";
+import { getSettings } from "~/lib/settings.server";
 
 export function meta() {
   return [
@@ -15,11 +16,30 @@ export function meta() {
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const [categories, diningTile, customer] = await Promise.all([
+  const [categories, diningTile, customer, heroSettings] = await Promise.all([
     listCategories(context),
     getDiningCategoryTile(context.db),
     getCustomer(context, request),
+    getSettings(context, [
+      "hero_image_url",
+      "hero_overlay",
+      "hero_heading",
+      "hero_subheading",
+      "hero_points",
+    ]),
   ]);
+  const overlayRaw = Number(heroSettings.hero_overlay);
+  const hero = {
+    image: (heroSettings.hero_image_url || "").trim(),
+    overlay: Number.isFinite(overlayRaw) ? Math.min(85, Math.max(0, overlayRaw)) : 45,
+    heading: (heroSettings.hero_heading || "").trim(),
+    subheading: (heroSettings.hero_subheading || "").trim(),
+    points: (heroSettings.hero_points || "")
+      .split(/\r?\n/)
+      .map((l: string) => l.trim())
+      .filter(Boolean)
+      .slice(0, 4),
+  };
   const tiles = categories.map((c) => ({
     ...c,
     href: `/products?category=${encodeURIComponent(c.category)}`,
@@ -30,7 +50,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     (a, b) =>
       Number(b.featured) - Number(a.featured) || a.category.localeCompare(b.category),
   );
-  return { categories: tiles, loggedIn: Boolean(customer) };
+  return { categories: tiles, hero, loggedIn: Boolean(customer) };
 }
 
 const BENEFITS = [
@@ -49,38 +69,88 @@ const BENEFITS = [
 ];
 
 export default function Home() {
-  const { categories, loggedIn } = useLoaderData<typeof loader>();
+  const { categories, hero, loggedIn } = useLoaderData<typeof loader>();
+  const heading = hero.heading || "The Furniture Shack range, at trade prices.";
+  const subheading =
+    hero.subheading ||
+    "For retailers, interior designers and commercial projects — the full catalogue, regularly synced availability, and online ordering around the clock.";
 
   return (
     <div className="flex flex-col gap-14">
-      <section className="flex flex-col items-start gap-5 pt-6 sm:pt-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-          Wholesale furniture, direct to trade
-        </p>
-        <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
-          The Furniture Shack range, at trade prices.
-        </h1>
-        <p className="max-w-xl text-lg text-muted-foreground">
-          For retailers, interior designers and commercial projects — the full catalogue,
-          regularly synced availability, and online ordering around the clock.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            to="/products"
-            className="rounded-md bg-primary px-5 py-3 font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Browse the range
-          </Link>
-          {!loggedIn && (
+      {hero.image ? (
+        <section className="relative -mt-2 overflow-hidden rounded-2xl">
+          <img
+            src={hero.image}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: `rgba(0, 0, 0, ${hero.overlay / 100})` }}
+          />
+          <div className="relative z-10 flex max-w-2xl flex-col items-start gap-5 px-6 py-16 text-white sm:px-12 sm:py-24">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
+              Wholesale furniture, direct to trade
+            </p>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{heading}</h1>
+            <p className="text-lg text-white/85">{subheading}</p>
+            {hero.points.length > 0 && (
+              <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
+                {hero.points.map((point) => (
+                  <li key={point} className="flex items-center gap-2">
+                    <span className="flex size-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-brand-foreground">
+                      ✓
+                    </span>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-1 flex flex-wrap gap-3">
+              <Link
+                to="/categories"
+                className="rounded-md bg-white px-5 py-3 font-medium text-black hover:bg-white/90"
+              >
+                Browse the range
+              </Link>
+              {!loggedIn && (
+                <Link
+                  to="/trade/apply"
+                  className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
+                >
+                  Apply for a trade account
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="flex flex-col items-start gap-5 pt-6 sm:pt-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+            Wholesale furniture, direct to trade
+          </p>
+          <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
+            {heading}
+          </h1>
+          <p className="max-w-xl text-lg text-muted-foreground">{subheading}</p>
+          <div className="flex flex-wrap gap-3">
             <Link
-              to="/trade/apply"
-              className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
+              to="/products"
+              className="rounded-md bg-primary px-5 py-3 font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Apply for a trade account
+              Browse the range
             </Link>
-          )}
-        </div>
-      </section>
+            {!loggedIn && (
+              <Link
+                to="/trade/apply"
+                className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
+              >
+                Apply for a trade account
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {categories.length > 0 && (
         <section className="flex flex-col gap-5">

@@ -6,20 +6,29 @@ import {
   Scripts,
   ScrollRestoration,
   useRouteError,
+  useRouteLoaderData,
+  type LoaderFunctionArgs,
 } from "react-router";
 
 import stylesheet from "./app.css?url";
+import { getSetting } from "~/lib/settings.server";
 
 export function links() {
   return [{ rel: "stylesheet", href: stylesheet }];
 }
 
+export async function loader({ context }: LoaderFunctionArgs) {
+  return { faviconUrl: (await getSetting(context, "favicon_url"))?.trim() || "" };
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData<typeof loader>("root");
   return (
     <html lang="en-AU">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {data?.faviconUrl && <link rel="icon" href={data.faviconUrl} />}
         <Meta />
         <Links />
       </head>

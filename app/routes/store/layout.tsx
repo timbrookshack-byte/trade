@@ -21,6 +21,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       "company_email",
       "company_address",
       "company_instagram",
+      "site_logo_url",
     ]),
     readCart(context, request),
   ]);
@@ -39,6 +40,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       email: settings.company_email || "",
       address: settings.company_address || "",
       instagram: instagramInfo(settings.company_instagram || ""),
+      logoUrl: (settings.site_logo_url || "").trim(),
     },
   };
 }
@@ -49,16 +51,26 @@ export default function StoreLayout() {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 py-4">
           <Link to="/" className="shrink-0">
-            <span className="block text-lg font-bold uppercase tracking-widest leading-none">
-              The Furniture Shack
-            </span>
-            <span className="block text-xs font-medium uppercase tracking-[0.35em] text-muted-foreground">
-              Trade
-            </span>
+            {company.logoUrl ? (
+              <img
+                src={company.logoUrl}
+                alt={company.name}
+                className="h-10 w-auto sm:h-11"
+              />
+            ) : (
+              <>
+                <span className="block text-lg font-bold uppercase tracking-widest leading-none">
+                  The Furniture Shack
+                </span>
+                <span className="block text-xs font-medium uppercase tracking-[0.35em] text-muted-foreground">
+                  Trade
+                </span>
+              </>
+            )}
           </Link>
-          <nav className="flex items-center gap-5 text-sm font-medium">
+          <nav className="flex items-center gap-6">
             {[
               { to: "/categories", label: "Categories" },
               { to: "/projects", label: "Projects" },
@@ -71,9 +83,9 @@ export default function StoreLayout() {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "hidden hover:text-primary sm:inline",
+                    "hidden text-xs font-semibold uppercase tracking-[0.15em] text-foreground/70 transition-colors hover:text-foreground sm:inline",
                     item.to === "/categories" && "inline",
-                    isActive && "underline underline-offset-8",
+                    isActive && "text-brand hover:text-brand",
                   )
                 }
               >

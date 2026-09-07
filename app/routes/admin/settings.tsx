@@ -77,6 +77,23 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Storefront display settings saved." };
   }
 
+  if (intent === "branding") {
+    const overlayRaw = Number(String(form.get("hero_overlay") ?? "").trim());
+    await setSettings(context, {
+      site_logo_url: String(form.get("site_logo_url") ?? "").trim(),
+      favicon_url: String(form.get("favicon_url") ?? "").trim(),
+      hero_image_url: String(form.get("hero_image_url") ?? "").trim(),
+      hero_overlay:
+        Number.isFinite(overlayRaw) && overlayRaw >= 0 && overlayRaw <= 85
+          ? String(Math.round(overlayRaw))
+          : "45",
+      hero_heading: String(form.get("hero_heading") ?? "").trim(),
+      hero_subheading: String(form.get("hero_subheading") ?? "").trim(),
+      hero_points: String(form.get("hero_points") ?? "").trim(),
+    });
+    return { ok: "Branding & hero saved." };
+  }
+
   if (intent === "payment") {
     const entries: Record<string, string> = {};
     for (const key of [
@@ -249,6 +266,116 @@ export default function SettingsPage() {
             <div className="sm:col-span-2">
               <Button type="submit" disabled={busy}>
                 Save company details
+              </Button>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Branding & home hero</CardTitle>
+          <CardDescription>
+            Logo and favicon show across the whole site; the hero image sits at the top of
+            the home page with your message over it. Host images anywhere (e.g. Shopify
+            files) and paste the URLs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="intent" value="branding" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="site_logo_url">Logo image URL</Label>
+              <div className="flex items-center gap-2">
+                {settings.site_logo_url && (
+                  <img src={settings.site_logo_url} alt="" className="h-9 w-auto rounded border border-border bg-white p-0.5" />
+                )}
+                <Input
+                  id="site_logo_url"
+                  name="site_logo_url"
+                  placeholder="https://… (blank = text logo)"
+                  defaultValue={settings.site_logo_url ?? ""}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Displays ~40px tall in the header — a wide transparent PNG/SVG works best.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="favicon_url">Favicon URL</Label>
+              <div className="flex items-center gap-2">
+                {settings.favicon_url && (
+                  <img src={settings.favicon_url} alt="" className="h-8 w-8 rounded border border-border" />
+                )}
+                <Input
+                  id="favicon_url"
+                  name="favicon_url"
+                  placeholder="https://… (.png or .ico, square)"
+                  defaultValue={settings.favicon_url ?? ""}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The little browser-tab icon — 64×64px or larger square image.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="hero_image_url">Home hero image URL</Label>
+              <Input
+                id="hero_image_url"
+                name="hero_image_url"
+                placeholder="https://… (wide lifestyle photo; blank = plain text hero)"
+                defaultValue={settings.hero_image_url ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="hero_overlay">Image darkness ({settings.hero_overlay ?? "45"}%)</Label>
+              <input
+                id="hero_overlay"
+                name="hero_overlay"
+                type="range"
+                min={0}
+                max={85}
+                step={5}
+                defaultValue={settings.hero_overlay ?? "45"}
+                className="accent-brand"
+              />
+              <p className="text-xs text-muted-foreground">
+                Darkens the photo so the white text stays readable — nudge up for bright
+                images, down for moody ones.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="hero_heading">Hero heading</Label>
+              <Input
+                id="hero_heading"
+                name="hero_heading"
+                placeholder="The Furniture Shack range, at trade prices."
+                defaultValue={settings.hero_heading ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="hero_subheading">Hero subheading</Label>
+              <Textarea
+                id="hero_subheading"
+                name="hero_subheading"
+                rows={2}
+                placeholder="For retailers, interior designers and commercial projects…"
+                defaultValue={settings.hero_subheading ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:col-span-2">
+              <Label htmlFor="hero_points">Key points (one per line, up to 4)</Label>
+              <Textarea
+                id="hero_points"
+                name="hero_points"
+                rows={3}
+                placeholder={"Trade pricing on the full range\nLive Brisbane stock + ETAs\nInvoiced ordering, 24/7"}
+                defaultValue={settings.hero_points ?? ""}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={busy}>
+                Save branding & hero
               </Button>
             </div>
           </Form>
