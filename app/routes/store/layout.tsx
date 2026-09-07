@@ -13,7 +13,7 @@ import { getSettings } from "~/lib/settings.server";
 import { cn, instagramInfo } from "~/lib/utils";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const [customer, settings, cart] = await Promise.all([
+  const [customer, settings, cart, diningSets] = await Promise.all([
     getCustomer(context, request),
     getSettings(context, [
       "company_name",
@@ -23,8 +23,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       "company_instagram",
     ]),
     readCart(context, request),
+    context.db<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM dining_sets WHERE active AND discontinued_at IS NULL
+    `,
   ]);
   return {
+    hasDiningSets: (diningSets[0]?.n ?? 0) > 0,
     cartCount: cart.reduce((sum, l) => sum + l.qty, 0),
     customer: customer
       ? {
@@ -44,7 +48,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 export default function StoreLayout() {
-  const { customer, company, cartCount } = useLoaderData<typeof loader>();
+  const { customer, company, cartCount, hasDiningSets } = useLoaderData<typeof loader>();
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -61,6 +65,7 @@ export default function StoreLayout() {
           <nav className="flex items-center gap-5 text-sm font-medium">
             {[
               { to: "/products", label: "Products" },
+              ...(hasDiningSets ? [{ to: "/dining-sets", label: "Dining Sets" }] : []),
               { to: "/projects", label: "Projects" },
               { to: "/about", label: "About" },
               { to: "/faq", label: "FAQ" },

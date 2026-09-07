@@ -4,6 +4,7 @@ import {
   recomputeBundlePricing,
   recomputeBundleStock,
 } from "./products.server";
+import { runDiningSetSync } from "./dining.server";
 import type { SyncResult } from "./sync.server";
 
 /**
@@ -55,7 +56,9 @@ export function buildAuthorizeUrl(input: {
 }) {
   const url = new URL(`${shopBaseUrl(input.domain)}/admin/oauth/authorize`);
   url.searchParams.set("client_id", input.clientId);
-  url.searchParams.set("scope", "read_products");
+  // read_metaobjects + read_files: dining set configurators (chair-option
+  // metaobjects and their images). Reconnect after a scope change.
+  url.searchParams.set("scope", "read_products,read_metaobjects,read_files");
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("state", input.state);
   return url.toString();
@@ -493,7 +496,13 @@ export async function runScheduledShopifySync(db: Sql): Promise<SyncResult> {
     const elapsedMs = Date.now() - new Date(last.started_at).getTime();
     if (elapsedMs < (intervalMinutes - 2) * 60_000) return { status: "skipped" };
   }
-  return runShopifyBundleSync(db, "cron");
+  const result = await runShopifyBundleSync(db, "cron");
+  // Dining set configurators ride the same cadence; a failure there must not
+  // fail the bundle sync (it records its own sync_runs row).
+  await runDiningSetSync(db, "cron").catch((err) =>
+    console.log("dining set sync error:", String(err)),
+  );
+  return result;
 }
 
 export interface BundleComponentRow {

@@ -196,6 +196,31 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   postgres.js guards, the param must go through `db.json(...)` too — a plain
   string double-encodes to a jsonb string and never matches.
 
+## Dining sets (✅ built — configurable bundles from Shopify's DSB)
+
+Shopify's dining set builder (see DSBEXPORTSPEC: shell products with
+`custom.dsb_*` metafields + `dining_set_chair_option` metaobjects) syncs into
+`dining_sets` / `dining_set_chairs` (`app/lib/dining.server.ts`, sync_runs
+kind `dining_sets`, rides the Shopify cron + "Sync dining sets" button on
+/admin/dining-sets). Key decisions:
+
+- Every product reference resolves to VARIANT SKUS at sync time; pricing and
+  stock come from the portal catalogue (360 is the stock truth — Shopify's
+  §4 availability metafields are ignored as derivative).
+- Only ACTIVE chair-option metaobjects sync; metafield order = display order,
+  first option pre-selected. Vanished shells → `discontinued_at`, never
+  deleted. `dining_sets.active` is portal-owned (hide/show in admin).
+- Storefront: /dining-sets (+ nav link that appears only when sets exist) and
+  /dining-sets/:slug configurator — hero swaps to the option's composite
+  photo, chair colour + table variant dropdowns when >1, qty pills, price =
+  table + chair × qty (ex-first; scrubbed for public), per-component stock
+  bands, table+chair description sections.
+- **Add to cart = two REAL line items** (table SKU × 1, chair SKU × qty) —
+  the set is never carted, so orders, invoices and the 360 push work
+  natively. The action re-validates the configuration server-side.
+- OAuth scope is now `read_products,read_metaobjects,read_files` — after
+  deploying a scope change, RECONNECT Shopify from Settings.
+
 ## Portal data model (its own Postgres)
 
 - `products` — sku (unique), name, category, description, images, trade_price,
