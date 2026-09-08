@@ -6,7 +6,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
-import { createUser, requireUser, type Role, type User } from "~/lib/auth.server";
+import { createUser, hashPassword, requireUser, type Role, type User } from "~/lib/auth.server";
 import { formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input, Select } from "~/components/ui/input";
@@ -68,6 +68,18 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
     await createUser(context, { name, email, password, role });
     return { ok: `${name} added.` };
+  }
+
+  if (intent === "set-password") {
+    const id = Number(form.get("id"));
+    const password = String(form.get("password") ?? "");
+    if (!Number.isInteger(id)) return { error: "Pick a user." };
+    if (password.length < 8) return { error: "Password must be at least 8 characters." };
+    const [user] = await sql<{ name: string }[]>`SELECT name FROM users WHERE id = ${id}`;
+    if (!user) return { error: "Pick a user." };
+    const password_hash = await hashPassword(password);
+    await sql`UPDATE users SET password_hash = ${password_hash}, updated_at = now() WHERE id = ${id}`;
+    return { ok: `Password reset for ${user.name} — they can sign in with it straight away.` };
   }
 
   if (intent === "toggle-active") {
@@ -153,6 +165,47 @@ export default function UsersPage() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reset a password</CardTitle>
+          <CardDescription>
+            For when someone forgets theirs — the new password works immediately. Tell it
+            to them in person or by phone, not email.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="intent" value="set-password" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reset-user">User</Label>
+              <Select id="reset-user" name="id" required>
+                {users.map((user: User) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.email}){user.id === myId ? " — you" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reset-password">New password</Label>
+              <Input
+                id="reset-password"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={busy}>
+                Reset password
+              </Button>
+            </div>
+          </Form>
         </CardContent>
       </Card>
 
