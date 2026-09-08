@@ -171,23 +171,42 @@ export default function CategoriesPage() {
   // Either way the order saves the moment it changes.
   const [rows, setRows] = useState<CategoryRow[]>(categories);
   const rowsRef = useRef(rows);
+  const savedOrderRef = useRef<string[] | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragArmed, setDragArmed] = useState<number | null>(null);
   useEffect(() => {
-    // Don't let a revalidation from an earlier save clobber an order the
-    // user has moved on from — only adopt loader data once saves settle.
     if (fetcher.state !== "idle") return;
-    setRows(categories);
-    rowsRef.current = categories;
-  }, [categories, fetcher.state]);
+    if (fetcher.data?.error) savedOrderRef.current = null; // save failed — show server truth
+    // Once an order has been saved, it IS the truth — re-reads can lag behind
+    // the write (Hyperdrive caches read queries), so re-apply the saved order
+    // to incoming loader rows rather than adopting their (possibly stale)
+    // sequence. Row content (counts, names) still refreshes from the loader.
+    const saved = savedOrderRef.current;
+    let next = categories;
+    if (saved) {
+      const byName = new Map(categories.map((c: CategoryRow) => [c.category, c]));
+      const inSaved = new Set(saved);
+      next = [
+        ...saved.flatMap((name) => {
+          const row = byName.get(name);
+          return row ? [row] : [];
+        }),
+        ...categories.filter((c: CategoryRow) => !inSaved.has(c.category)),
+      ];
+    }
+    setRows(next);
+    rowsRef.current = next;
+  }, [categories, fetcher.state, fetcher.data]);
 
+  const submitOrder = () => {
+    const order = rowsRef.current.map((r) => r.category);
+    savedOrderRef.current = order;
+    fetcher.submit({ intent: "reorder", order: order.join("\n") }, { method: "post" });
+  };
   const saveOrder = (next: CategoryRow[]) => {
     rowsRef.current = next;
     setRows(next);
-    fetcher.submit(
-      { intent: "reorder", order: next.map((r) => r.category).join("\n") },
-      { method: "post" },
-    );
+    submitOrder();
   };
   const moveRow = (i: number, delta: number) => {
     const j = i + delta;
@@ -209,10 +228,7 @@ export default function CategoriesPage() {
     setDragArmed(null);
     if (dragIdx === null) return;
     setDragIdx(null);
-    fetcher.submit(
-      { intent: "reorder", order: rowsRef.current.map((r) => r.category).join("\n") },
-      { method: "post" },
-    );
+    submitOrder();
   };
 
   return (
