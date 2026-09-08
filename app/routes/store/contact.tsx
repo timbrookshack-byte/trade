@@ -97,7 +97,7 @@ export default function Contact() {
         <div className="space-y-4">
           {company.phone && (
             <a
-              href={`tel:${company.phone.replace(/\s/g, "")}`}
+              href={`tel:${company.phone.replace(/[^+\d]/g, "")}`}
               className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-brand/50"
             >
               <span className="rounded-lg bg-brand/10 p-2.5 text-brand">
@@ -105,13 +105,13 @@ export default function Contact() {
               </span>
               <span>
                 <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Enquiries
+                  Call the trade team
                 </span>
                 <span className="mt-0.5 block text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
                   {company.phone}
                 </span>
                 <span className="block text-sm text-muted-foreground">
-                  Enquiries, orders, stock checks and card payments over the phone.
+                  Orders, stock checks and card payments over the phone.
                 </span>
               </span>
             </a>
