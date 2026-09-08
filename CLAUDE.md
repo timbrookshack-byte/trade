@@ -80,6 +80,13 @@ Notes:
 - Excluded automatically: inactive products, hidden ranges (Salt Sun Sand),
   special-order-only items, products with no SKU.
 - **No cost prices are ever in this feed** (verified on the 360 side).
+- `rrp_inc_gst` is the FULL list RRP, never a promo price (360-side fix
+  2026-09): 360 keeps a per-SKU `rrp` from Shopify's compare-at ("was")
+  price and the feed sends `GREATEST(rrp, sell_price)`, so a retail sale
+  can't deflate trade pricing. Before this fix some RRPs synced 20% low —
+  the "Price ≠ default" filter + "Re-price at default (overwrites)" bulk
+  action on the admin products page exist to find and correct trade prices
+  set from bad RRPs.
 - The token lives in 360's `settings.trade_api_token`. Treat it as a secret:
   server-side fetch only, never expose to the browser.
 

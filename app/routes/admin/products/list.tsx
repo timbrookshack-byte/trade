@@ -51,11 +51,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const filter = parseFilter(url.searchParams.get("filter"));
   const search = url.searchParams.get("q") ?? "";
   const category = url.searchParams.get("category") ?? "";
-  const [products, categories, syncRuns, discountSetting] = await Promise.all([
-    listProducts(context.db, filter, search, category),
+  const discountPercent =
+    Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+  const [products, categories, syncRuns] = await Promise.all([
+    listProducts(context.db, filter, search, category, discountPercent),
     listAllCategories(context.db),
     getLastSyncRuns(context.db, 1),
-    getSetting(context, "trade_discount_percent"),
   ]);
   return {
     products,
@@ -64,7 +65,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     filter,
     search,
     category,
-    discountPercent: Number(discountSetting) || 37.5,
+    discountPercent,
   };
 }
 
@@ -99,6 +100,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     intent === "selected-activate" ||
     intent === "selected-deactivate" ||
     intent === "selected-price-default" ||
+    intent === "selected-reprice-default" ||
     intent === "selected-sheet" ||
     intent === "selected-quote"
   ) {
@@ -152,6 +154,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
       };
     }
     const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
+    if (intent === "selected-reprice-default") {
+      // Overwrites existing trade prices — for correcting prices that were
+      // set while the feed's RRP was wrong (e.g. a retail promo price).
+      const rows = await db<{ id: number }[]>`
+        UPDATE products
+        SET trade_price = round((rrp_reference * ${1 - discount / 100})::numeric, 2),
+            updated_at = now()
+        WHERE id IN ${db(ids)} AND source = 'shack360' AND rrp_reference IS NOT NULL
+        RETURNING id
+      `;
+      return {
+        bulkResult: `${rows.length} of ${ids.length} ticked re-priced at RRP − ${discount}% (bundles and portal products are untouched — bundle pricing recomputes from components).`,
+      };
+    }
     const rows = await db<{ id: number }[]>`
       UPDATE products
       SET trade_price = round(rrp_reference * ${1 - discount / 100}, 2), updated_at = now()
@@ -314,6 +330,9 @@ export default function ProductsList() {
             </Button>
             <Button type="submit" name="intent" value="selected-price-default" variant="outline" size="sm">
               Price at default (unpriced only)
+            </Button>
+            <Button type="submit" name="intent" value="selected-reprice-default" variant="outline" size="sm">
+              Re-price at default (overwrites)
             </Button>
             <Button type="submit" name="intent" value="selected-sheet" variant="outline" size="sm">
               Product sheet

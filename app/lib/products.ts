@@ -48,6 +48,7 @@ export type ProductFilter =
   | "new"
   | "bundles"
   | "portal"
+  | "off-default"
   | "discontinued";
 
 export const PRODUCT_FILTERS: { key: ProductFilter; label: string }[] = [
@@ -57,5 +58,6 @@ export const PRODUCT_FILTERS: { key: ProductFilter; label: string }[] = [
   { key: "new", label: "New from 360" },
   { key: "bundles", label: "Bundles" },
   { key: "portal", label: "Portal-only" },
+  { key: "off-default", label: "Price ≠ default" },
   { key: "discontinued", label: "Discontinued" },
 ];

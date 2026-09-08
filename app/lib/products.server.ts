@@ -6,9 +6,14 @@ export async function listProducts(
   filter: ProductFilter,
   search: string,
   category = "",
+  discountPercent = 37.5,
 ) {
   const term = search.trim() ? `%${search.trim()}%` : null;
   const cat = category.trim() || null;
+  // 'off-default': 360 products whose trade price no longer matches the
+  // formula — e.g. it was set while the feed's RRP was a promo price.
+  // Bundles are excluded (their pricing recomputes from components).
+  const factor = 1 - discountPercent / 100;
   return db<Product[]>`
     SELECT * FROM products
     WHERE CASE ${filter}
@@ -17,6 +22,9 @@ export async function listProducts(
         WHEN 'new' THEN source = 'shack360' AND NOT active AND trade_price IS NULL AND discontinued_at IS NULL
         WHEN 'bundles' THEN source = 'shopify'
         WHEN 'portal' THEN source = 'portal'
+        WHEN 'off-default' THEN source = 'shack360' AND discontinued_at IS NULL
+          AND rrp_reference IS NOT NULL AND trade_price IS NOT NULL
+          AND trade_price IS DISTINCT FROM round((rrp_reference * ${factor})::numeric, 2)
         WHEN 'discontinued' THEN discontinued_at IS NOT NULL
         ELSE TRUE
       END
