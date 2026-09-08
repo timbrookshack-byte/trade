@@ -1,6 +1,7 @@
 import {
   Form,
   Link,
+  redirect,
   useActionData,
   useLoaderData,
   useNavigation,
@@ -106,6 +107,22 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const category = params.category ?? "";
   if (!category) throw new Response("Not found", { status: 404 });
   const form = await request.formData();
+
+  if (form.get("intent") === "delete") {
+    // Only categories with no products can be removed — the row is just
+    // settings, so deleting one that products still use would merely reset
+    // its display settings and the category would reappear.
+    const [{ n }] = await context.db<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM products
+      WHERE category = ${category} OR extra_categories ? ${category}
+    `;
+    if (n > 0) return { error: "This category still has products — it can't be removed." };
+    if (category === DINING_CATEGORY_NAME) {
+      return { error: "The dining sets category is built in — hide it instead." };
+    }
+    await context.db`DELETE FROM category_settings WHERE category = ${category}`;
+    throw redirect("/admin/categories");
+  }
 
   // Optimistic concurrency: reject if another save created/changed this
   // category's settings row since the form was opened.
@@ -286,9 +303,22 @@ export default function CategoryDetail() {
         </CardHeader>
         <CardContent>
           {products.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground">
-              No products in this category yet — assign it on a product's edit page.
-            </p>
+            <div className="flex flex-col items-center gap-4 py-8 text-center text-muted-foreground">
+              <p>No products in this category yet — assign it on a product's edit page.</p>
+              {diningCount == null && (
+                <Form
+                  method="post"
+                  onSubmit={(e) => {
+                    if (!confirm(`Remove the empty category "${category}"?`)) e.preventDefault();
+                  }}
+                >
+                  <input type="hidden" name="intent" value="delete" />
+                  <Button type="submit" variant="outline" disabled={busy}>
+                    Remove this empty category
+                  </Button>
+                </Form>
+              )}
+            </div>
           ) : (
             <Table>
               <TableHeader>

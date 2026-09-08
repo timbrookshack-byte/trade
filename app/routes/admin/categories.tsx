@@ -70,10 +70,29 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const [dining] = await context.db<{ n: number }[]>`
     SELECT count(*)::int AS n FROM dining_sets WHERE discontinued_at IS NULL
   `;
+  const diningCount = dining?.n ?? 0;
+  // The dining category is virtual (sets aren't products), so it has no row
+  // until the team saves settings or an order for it — inject it so it can
+  // always be found, reordered and featured.
+  if (diningCount > 0 && !categories.some((c: CategoryRow) => c.category === DINING_CATEGORY_NAME)) {
+    categories.push({
+      category: DINING_CATEGORY_NAME,
+      position: 1000,
+      active_count: 0,
+      total_count: 0,
+      display_name: "",
+      hidden: false,
+      image_url: "",
+    });
+    categories.sort(
+      (a: CategoryRow, b: CategoryRow) =>
+        a.position - b.position || a.category.localeCompare(b.category),
+    );
+  }
   return {
     categories: categories.map((c: CategoryRow) => ({
       ...c,
-      dining_sets: c.category === DINING_CATEGORY_NAME ? (dining?.n ?? 0) : null,
+      dining_sets: c.category === DINING_CATEGORY_NAME ? diningCount : null,
     })),
   };
 }
@@ -89,14 +108,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
       .map((c) => c.trim())
       .filter(Boolean)
       .slice(0, 200);
-    await context.db.begin(async (tx: typeof context.db) => {
-      for (let i = 0; i < ordered.length; i++) {
-        await tx`
-          INSERT INTO category_settings (category, position) VALUES (${ordered[i]}, ${(i + 1) * 10})
-          ON CONFLICT (category) DO UPDATE SET position = ${(i + 1) * 10}, updated_at = now()
-        `;
-      }
-    });
+    try {
+      await context.db.begin(async (tx: typeof context.db) => {
+        for (let i = 0; i < ordered.length; i++) {
+          await tx`
+            INSERT INTO category_settings (category, position) VALUES (${ordered[i]}, ${(i + 1) * 10})
+            ON CONFLICT (category) DO UPDATE SET position = ${(i + 1) * 10}, updated_at = now()
+          `;
+        }
+      });
+    } catch (e) {
+      return {
+        error: `Couldn't save the category order — ${
+          e instanceof Error ? e.message : "database error"
+        }. If this mentions a missing "position" column, migration 0019 hasn't been applied yet.`,
+      };
+    }
     return { ok: "Category order saved." };
   }
 
@@ -136,7 +163,7 @@ export default function CategoriesPage() {
   const { categories } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const fetcher = useFetcher<{ ok?: string }>();
+  const fetcher = useFetcher<{ ok?: string; error?: string }>();
   const busy = navigation.state !== "idle";
 
   // Reordering: drag rows by the grip (desktop) or use the arrows (works
@@ -147,9 +174,12 @@ export default function CategoriesPage() {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragArmed, setDragArmed] = useState<number | null>(null);
   useEffect(() => {
+    // Don't let a revalidation from an earlier save clobber an order the
+    // user has moved on from — only adopt loader data once saves settle.
+    if (fetcher.state !== "idle") return;
     setRows(categories);
     rowsRef.current = categories;
-  }, [categories]);
+  }, [categories, fetcher.state]);
 
   const saveOrder = (next: CategoryRow[]) => {
     rowsRef.current = next;
@@ -206,6 +236,7 @@ export default function CategoriesPage() {
       {actionData && "error" in actionData && actionData.error && (
         <Alert variant="destructive">{actionData.error}</Alert>
       )}
+      {fetcher.data?.error && <Alert variant="destructive">{fetcher.data.error}</Alert>}
 
       <Form method="post" className="flex items-end gap-2">
         <input type="hidden" name="intent" value="add" />
