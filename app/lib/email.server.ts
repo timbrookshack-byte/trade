@@ -62,6 +62,9 @@ const paymentHtml = (payment: PaymentInfo, orderRef: string) => `
     when paying by direct deposit.</p>
   </div>`;
 
+/** Branded shell for one-off emails composed outside the template list. */
+export const brandedEmail = (body: string) => wrap(body);
+
 const wrap = (body: string) => `
   <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a;">
     <p style="letter-spacing: 4px; font-weight: bold; text-transform: uppercase;">The Furniture Shack <span style="color:#d6217f;">Trade</span></p>

@@ -285,6 +285,9 @@ value stores a jsonb string, not an array). The rules:
   approved with NO password) + per-customer invite links (`password_resets`
   tokens → /trade/set-password, 14-day expiry, emailed when Resend is
   configured). `customers.last_login_at` is stamped on every login.
+  Self-serve forgot-password: /trade/forgot (linked from login) emails a
+  24-hour single-use reset link via the same password_resets table; the
+  response never reveals whether an email has an account.
 - Orders: list by status, order detail, record payments (incl. part-payments),
   status transitions, packing slip / invoice PDF (GST invoice — ABN, GST
   breakdown).

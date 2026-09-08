@@ -101,12 +101,19 @@ export async function verifyCustomerLogin(
   return safe as Customer;
 }
 
-/** Create (or refresh) an invite/set-password token. Returns the URL path. */
-export async function createInviteToken(context: AppLoadContext, customerId: number) {
+/**
+ * Create (or refresh) an invite/set-password token. Returns the URL path.
+ * Admin invites default to 14 days; self-serve forgot-password links pass 1.
+ */
+export async function createInviteToken(
+  context: AppLoadContext,
+  customerId: number,
+  days = 14,
+) {
   const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
   await context.db`
     INSERT INTO password_resets (customer_id, token, expires_at)
-    VALUES (${customerId}, ${token}, now() + interval '14 days')
+    VALUES (${customerId}, ${token}, now() + (${days} * interval '1 day'))
   `;
   return `/trade/set-password?token=${token}`;
 }

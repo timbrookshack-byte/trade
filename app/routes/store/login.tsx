@@ -78,6 +78,11 @@ export default function TradeLogin() {
             </Button>
           </Form>
           <p className="mt-4 text-sm text-muted-foreground">
+            <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
+              Forgot your password?
+            </Link>
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
             No account yet?{" "}
             <Link to="/trade/apply" className="font-medium underline underline-offset-4">
               Apply for trade access

@@ -1,5 +1,6 @@
 import {
   Form,
+  Link,
   redirect,
   useActionData,
   useLoaderData,
@@ -73,8 +74,11 @@ export default function SetPassword() {
         <CardContent>
           {!valid ? (
             <Alert variant="destructive">
-              This link is invalid, expired, or already used. Contact the trade team for a
-              fresh invite.
+              This link is invalid, expired, or already used.{" "}
+              <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
+                Request a fresh reset link
+              </Link>{" "}
+              or contact the trade team.
             </Alert>
           ) : (
             <Form method="post" className="flex flex-col gap-4">

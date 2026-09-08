@@ -16,6 +16,7 @@ export default [
     route("projects/:slug", "routes/store/project.tsx"),
     route("trade/apply", "routes/store/apply.tsx"),
     route("trade/login", "routes/store/login.tsx"),
+    route("trade/forgot", "routes/store/forgot.tsx"),
     route("trade/set-password", "routes/store/set-password.tsx"),
     route("cart", "routes/store/cart.tsx"),
     route("account/orders", "routes/store/orders.tsx"),
