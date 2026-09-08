@@ -105,13 +105,13 @@ export default function Contact() {
               </span>
               <span>
                 <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Call the trade team
+                  Enquiries
                 </span>
                 <span className="mt-0.5 block text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
                   {company.phone}
                 </span>
                 <span className="block text-sm text-muted-foreground">
-                  Orders, stock checks and card payments over the phone.
+                  Enquiries, orders, stock checks and card payments over the phone.
                 </span>
               </span>
             </a>

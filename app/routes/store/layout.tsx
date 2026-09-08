@@ -144,7 +144,7 @@ export default function StoreLayout() {
             {company.address && <p className="mt-1 whitespace-pre-line">{company.address}</p>}
           </div>
           <div className="space-y-1">
-            {company.phone && <p>{company.phone}</p>}
+            {company.phone && <p>Enquiries: {company.phone}</p>}
             {company.email && <p>{company.email}</p>}
             {company.instagram && (
               <p>
