@@ -74,15 +74,22 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   if (form.get("intent") === "apply-default" && product.rrp_reference != null) {
     const discount = Number(await getSetting(context, "trade_discount_percent")) || 37.5;
     const price = defaultTradePrice(Number(product.rrp_reference), discount);
-    await db`
+    const [saved] = await db`
       UPDATE products SET trade_price = ${price},
         overrides = CASE WHEN source = 'shopify'
                          THEN overrides || '{"trade_price": true}'::jsonb
                          ELSE overrides END,
         updated_at = now()
       WHERE id = ${id}
+      RETURNING sku, name, description, category, trade_price, active,
+                extra_categories, dimensions, image_url
     `;
-    return { ok: `Trade price set to the default (RRP − ${discount}%).` };
+    // Hand the form its new stamp directly — the revalidated loader read can
+    // be cache-stale, and a stale stamp would falsely block the next save.
+    return {
+      ok: `Trade price set to the default (RRP − ${discount}%).`,
+      savedStamp: saved ? await productEditStamp(saved) : undefined,
+    };
   }
 
   // Optimistic concurrency: reject the save if the editable fields changed
@@ -363,7 +370,14 @@ export default function EditProduct() {
             </Form>
           )}
           <Form method="post" className="flex flex-col gap-4">
-            <input type="hidden" name="edit_stamp" value={editStamp} />
+            <input
+              type="hidden"
+              name="edit_stamp"
+              value={
+                (actionData && "savedStamp" in actionData && actionData.savedStamp) ||
+                editStamp
+              }
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="trade_price">Trade price (inc GST)</Label>

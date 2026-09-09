@@ -39,7 +39,11 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   await requireUser(context, request);
   const db = context.db;
   const id = Number(params.id);
-  const [project] = await db<Project[]>`SELECT * FROM projects WHERE id = ${id}`;
+  // now() makes the query volatile so Hyperdrive can't serve it from cache —
+  // the concurrency guard below must compare against the LIVE row.
+  const [project] = await db<Project[]>`
+    SELECT *, now() AS _uncached FROM projects WHERE id = ${id}
+  `;
   if (!project) throw new Response("Not found", { status: 404 });
   const form = await request.formData();
 
@@ -96,7 +100,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     unknownSkus = skuInput.filter((s) => !foundBySku.has(s));
   }
 
-  await db`
+  const [saved] = await db<{ updated_at: string }[]>`
     UPDATE projects SET
       title = ${title},
       slug = ${slugInput},
@@ -110,8 +114,13 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       position = ${Math.trunc(Number(form.get("position")) || 0)},
       updated_at = now()
     WHERE id = ${id}
+    RETURNING updated_at::text AS updated_at
   `;
+  // Return the fresh token: post-save re-reads can lag behind the write
+  // (Hyperdrive caches read queries), and a stale token in the form would
+  // make the NEXT save trip the concurrency guard falsely.
   return {
+    savedAt: saved?.updated_at,
     ok:
       unknownSkus.length > 0
         ? `Project saved — but these SKUs aren't in the catalogue and were left off: ${unknownSkus.join(", ")}.`
@@ -164,7 +173,14 @@ export default function ProjectEdit() {
         </CardHeader>
         <CardContent>
           <Form method="post" className="flex flex-col gap-4">
-            <input type="hidden" name="loaded_at" value={project.updated_at} />
+            <input
+              type="hidden"
+              name="loaded_at"
+              value={
+                (actionData && "savedAt" in actionData && actionData.savedAt) ||
+                project.updated_at
+              }
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="title">Title</Label>

@@ -128,8 +128,11 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   // category's settings row since the form was opened.
   const loadedAt = String(form.get("loaded_at") ?? "");
   if (loadedAt) {
+    // now() keeps this read out of Hyperdrive's query cache — the guard
+    // must compare against the live row.
     const [current] = await context.db<{ updated_at: string }[]>`
-      SELECT updated_at::text AS updated_at FROM category_settings WHERE category = ${category}
+      SELECT updated_at::text AS updated_at, now() AS _uncached
+      FROM category_settings WHERE category = ${category}
     `;
     const currentToken = current?.updated_at ?? "new";
     if (loadedAt !== currentToken) {
@@ -142,7 +145,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   }
 
   const imageFit = form.get("image_fit") === "contain" ? "contain" : "cover";
-  await context.db`
+  const [saved] = await context.db<{ updated_at: string }[]>`
     INSERT INTO category_settings (category, display_name, hidden, image_url, image_fit, featured)
     VALUES (${category},
             ${String(form.get("display_name") ?? "").trim()},
@@ -157,8 +160,10 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
           image_fit = EXCLUDED.image_fit,
           featured = EXCLUDED.featured,
           updated_at = now()
+    RETURNING updated_at::text AS updated_at
   `;
-  return { ok: "Category settings saved." };
+  // Fresh token back to the form — post-save re-reads can be cache-stale.
+  return { ok: "Category settings saved.", savedAt: saved?.updated_at };
 }
 
 export default function CategoryDetail() {
@@ -217,7 +222,14 @@ export default function CategoryDetail() {
         </CardHeader>
         <CardContent>
           <Form method="post" className="grid gap-4 sm:grid-cols-2">
-            <input type="hidden" name="loaded_at" value={settings.updated_at} />
+            <input
+              type="hidden"
+              name="loaded_at"
+              value={
+                (actionData && "savedAt" in actionData && actionData.savedAt) ||
+                settings.updated_at
+              }
+            />
             <div className="flex flex-col gap-2">
               <Label htmlFor="display_name">Display name on storefront</Label>
               <Input

@@ -167,7 +167,11 @@ export async function activatePriced(db: Sql) {
 }
 
 export async function getProduct(db: Sql, id: number) {
-  const rows = await db<Product[]>`SELECT * FROM products WHERE id = ${id}`;
+  // now() makes the query volatile so Hyperdrive never serves it from cache:
+  // the edit form's concurrency stamp must be computed from the live row.
+  const rows = await db<Product[]>`
+    SELECT *, now() AS _uncached FROM products WHERE id = ${id}
+  `;
   return rows[0] ?? null;
 }
 
