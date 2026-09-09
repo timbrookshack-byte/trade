@@ -180,6 +180,12 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
 - **Bundle `available_now` is computed**, not synced:
   min(floor(component stock / qty)), 0 if any component is missing from the
   portal or discontinued. `recomputeBundleStock` runs after BOTH syncs.
+  **Bundle `incoming` is DERIVED from component container shipments** (same
+  recompute): at each component ETA, how many MORE complete sets become
+  buildable (entries `{qty, eta, status: "components"}`; leftover from
+  undated shipments gets `eta: ""`). This keeps the stock auto-toggle from
+  deactivating a bundle that's fully on the water and drives the
+  storefront's "Incoming — ETA" band on packages.
 - Storefront product page shows "What's included" (names + qtys, no prices);
   rides the same 15-min cron ("Sync bundles" button for manual runs).
 - Component SKUs in Shopify must match 360 SKUs — mismatches show on the

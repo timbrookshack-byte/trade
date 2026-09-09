@@ -132,27 +132,79 @@ export async function recomputeBundlePricing(db: Sql) {
 }
 
 /**
- * 360 stock: min(floor(component available / qty)); 0 if any component is
- * missing from the portal or discontinued. Called after every sync.
+ * Bundle stock from components, both on-hand AND incoming. Called after
+ * every sync.
+ *
+ * available_now = min(floor(component available / qty)); 0 if any component
+ * is missing from the portal or discontinued.
+ *
+ * incoming is DERIVED from component container shipments: at each component
+ * ETA, how many MORE complete sets become buildable (a set needs all its
+ * parts, so extra sets land at the latest of its parts' arrivals). This
+ * feeds the stock auto-toggle — a bundle out of stock but fully on the
+ * water stays active — and the storefront's "Incoming — ETA" band.
  */
 export async function recomputeBundleStock(db: Sql) {
-  await db`
-    UPDATE products b
-    SET available_now = COALESCE(sub.avail, 0)
-    FROM (
-      SELECT bc.bundle_id,
-             MIN(
-               CASE
-                 WHEN c.id IS NULL OR c.discontinued_at IS NOT NULL THEN 0
-                 ELSE FLOOR(c.available_now / bc.quantity)
-               END
-             )::int AS avail
-      FROM bundle_components bc
-      LEFT JOIN products c ON upper(c.sku) = upper(bc.component_sku)
-      GROUP BY bc.bundle_id
-    ) sub
-    WHERE b.id = sub.bundle_id AND b.source = 'shopify'
+  const rows = await db<
+    {
+      bundle_id: number;
+      quantity: number;
+      c_available: number | null;
+      c_incoming: { qty: number; eta: string; status: string }[] | null;
+      c_missing: boolean;
+    }[]
+  >`
+    SELECT bc.bundle_id, bc.quantity,
+           c.available_now AS c_available, c.incoming AS c_incoming,
+           (c.id IS NULL OR c.discontinued_at IS NOT NULL) AS c_missing
+    FROM bundle_components bc
+    JOIN products b ON b.id = bc.bundle_id AND b.source = 'shopify'
+    LEFT JOIN products c ON upper(c.sku) = upper(bc.component_sku)
   `;
+  const byBundle = new Map<number, (typeof rows)[number][]>();
+  for (const row of rows) {
+    const list = byBundle.get(row.bundle_id) ?? [];
+    list.push(row);
+    byBundle.set(row.bundle_id, list);
+  }
+
+  for (const [bundleId, comps] of byBundle) {
+    let avail = 0;
+    let incoming: { qty: number; eta: string; status: string }[] = [];
+    if (!comps.some((c) => c.c_missing)) {
+      // Buildable sets once every shipment with ETA <= cutoff has landed
+      // ("" = no cutoff, on-hand only; "~" sorts after every date = all).
+      const buildableBy = (cutoff: string) =>
+        Math.min(
+          ...comps.map((c) => {
+            const landed = (c.c_incoming ?? [])
+              .filter((s) => cutoff === "~" || (s.eta && s.eta <= cutoff))
+              .reduce((sum, s) => sum + (Number(s.qty) || 0), 0);
+            return Math.floor(((c.c_available ?? 0) + landed) / Math.max(c.quantity, 1));
+          }),
+        );
+      avail = buildableBy("");
+      const etas = [
+        ...new Set(comps.flatMap((c) => (c.c_incoming ?? []).map((s) => s.eta).filter(Boolean))),
+      ].sort();
+      let prev = avail;
+      for (const eta of etas) {
+        const buildable = buildableBy(eta);
+        if (buildable > prev) incoming.push({ qty: buildable - prev, eta, status: "components" });
+        prev = buildable;
+      }
+      const full = buildableBy("~"); // includes shipments with no ETA
+      if (full > prev) incoming.push({ qty: full - prev, eta: "", status: "components" });
+    }
+    // jsonb guard: the compared param must go through db.json too, or it
+    // double-encodes to a jsonb string and never matches (see CLAUDE.md).
+    await db`
+      UPDATE products SET available_now = ${avail}, incoming = ${db.json(incoming)}
+      WHERE id = ${bundleId}
+        AND (available_now IS DISTINCT FROM ${avail}
+             OR incoming IS DISTINCT FROM ${db.json(incoming)}::jsonb)
+    `;
+  }
 }
 
 /** Activate every priced, inactive, non-discontinued product. Returns count. */
