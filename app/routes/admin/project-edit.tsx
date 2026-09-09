@@ -30,7 +30,12 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   await requireUser(context, request);
   const id = Number(params.id);
   if (!Number.isInteger(id)) throw new Response("Not found", { status: 404 });
-  const [project] = await context.db<Project[]>`SELECT * FROM projects WHERE id = ${id}`;
+  // updated_token is the concurrency token as EXACT text — a Date object
+  // loses its microseconds on the round-trip through the form and never
+  // compares equal to the row again.
+  const [project] = await context.db<(Project & { updated_token: string })[]>`
+    SELECT *, updated_at::text AS updated_token FROM projects WHERE id = ${id}
+  `;
   if (!project) throw new Response("Not found", { status: 404 });
   return { project };
 }
@@ -41,8 +46,9 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const id = Number(params.id);
   // now() makes the query volatile so Hyperdrive can't serve it from cache —
   // the concurrency guard below must compare against the LIVE row.
-  const [project] = await db<Project[]>`
-    SELECT *, now() AS _uncached FROM projects WHERE id = ${id}
+  const [project] = await db<(Project & { updated_token: string })[]>`
+    SELECT *, updated_at::text AS updated_token, now() AS _uncached
+    FROM projects WHERE id = ${id}
   `;
   if (!project) throw new Response("Not found", { status: 404 });
   const form = await request.formData();
@@ -54,8 +60,10 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
   // Optimistic concurrency: projects only change via this form, so the row's
   // updated_at is a reliable "changed since you opened it" token.
+  // Exact text comparison — no Date parsing, no precision loss. Tokens from
+  // page loads before this fix shipped won't match once (reload clears it).
   const loadedAt = String(form.get("loaded_at") ?? "");
-  if (loadedAt && new Date(loadedAt).getTime() !== new Date(project.updated_at).getTime()) {
+  if (loadedAt && loadedAt !== project.updated_token) {
     return {
       error:
         "This project was changed by someone else since you opened it. " +
@@ -178,7 +186,7 @@ export default function ProjectEdit() {
               name="loaded_at"
               value={
                 (actionData && "savedAt" in actionData && actionData.savedAt) ||
-                project.updated_at
+                project.updated_token
               }
             />
             <div className="grid gap-4 sm:grid-cols-2">
