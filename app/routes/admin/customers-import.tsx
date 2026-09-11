@@ -99,6 +99,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     postcode: findColumn(headers, [/post ?code|zip/]),
     status: findColumn(headers, [/^status$/]),
     abn: findColumn(headers, [/abn|tax number|business number/, /tax/]),
+    lastOrder: findColumn(headers, [/^last order$/]),
   };
   if (col.email < 0 || col.business < 0) {
     return {
@@ -108,7 +109,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   const db = context.db;
   let created = 0;
+  let backfilled = 0;
   const skipped: string[] = [];
+  // Orderspace dates are YYYY/MM/DD; last_order_external orders the launch
+  // invite drip (recent customers first).
+  const lastOrderOf = (row: string[]) => {
+    const raw = col.lastOrder >= 0 ? (row[col.lastOrder] ?? "").trim() : "";
+    return /^\d{4}\/\d{2}\/\d{2}$/.test(raw) ? raw.replaceAll("/", "-") : null;
+  };
   for (const row of rows.slice(1).slice(0, 5000)) {
     const email = (row[col.email] ?? "").trim().toLowerCase();
     const business = (row[col.business] ?? "").trim();
@@ -124,6 +132,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
     const existing = await db`SELECT 1 FROM customers WHERE lower(email) = ${email}`;
     if (existing.length > 0) {
+      // Re-uploading the CSV backfills the old portal's last-order date onto
+      // rows imported before that column was captured. Nothing else changes.
+      const lastOrder = lastOrderOf(row);
+      if (lastOrder) {
+        const updated = await db`
+          UPDATE customers SET last_order_external = ${lastOrder}
+          WHERE lower(email) = ${email} AND last_order_external IS DISTINCT FROM ${lastOrder}
+          RETURNING id
+        `;
+        if (updated.length > 0) {
+          backfilled++;
+          continue;
+        }
+      }
       skipped.push(`${business} (${email} already exists)`);
       continue;
     }
@@ -136,7 +158,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // with no usable password — they set one via an invite link.
     await db`
       INSERT INTO customers (business_name, abn, business_type, contact_name, email, phone,
-                             address, password_hash, approved, approved_at)
+                             address, password_hash, approved, approved_at, last_order_external)
       VALUES (${business},
               ${col.abn >= 0 ? (row[col.abn] ?? "").replace(/\s/g, "").trim() : ""},
               'other',
@@ -144,13 +166,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
               ${email},
               ${col.phone >= 0 ? (row[col.phone] ?? "").trim() : ""},
               ${address},
-              '', TRUE, now())
+              '', TRUE, now(), ${lastOrderOf(row)})
     `;
     created++;
   }
 
   return {
-    ok: `${created} customer(s) imported (approved, no password yet — use each row's "Invite link" button, or email invites once Resend is configured).`,
+    ok: `${created} customer(s) imported (approved, no password yet — send launch invites from the Customers page).${
+      backfilled > 0 ? ` Last-order dates backfilled on ${backfilled} existing customer(s).` : ""
+    }`,
     skipped: skipped.slice(0, 50),
     skippedTotal: skipped.length,
   };

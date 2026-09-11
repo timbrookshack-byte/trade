@@ -1,5 +1,6 @@
 import {
   Form,
+  Link,
   redirect,
   useActionData,
   useNavigation,
@@ -72,7 +73,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     additional_info: String(form.get("additional_info") ?? "").trim(),
   });
   if (!created) {
-    return { error: "An account with that email already exists — try logging in instead." };
+    return { existingEmail: true } as const;
   }
   queueEmail(context, { to: [email], ...emailTemplates.registrationReceived(contactName) });
   const notify = await getNotifyAddress(context);
@@ -101,7 +102,19 @@ export default function Apply() {
         </p>
       </div>
 
-      {actionData?.error && <Alert variant="destructive">{actionData.error}</Alert>}
+      {actionData && "existingEmail" in actionData && actionData.existingEmail && (
+        <Alert>
+          Good news — you already have a trade account with that email (accounts from our
+          old trade portal came across automatically).{" "}
+          <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
+            Set your password here
+          </Link>{" "}
+          and you're in — no need to re-apply.
+        </Alert>
+      )}
+      {actionData && "error" in actionData && actionData.error && (
+        <Alert variant="destructive">{actionData.error}</Alert>
+      )}
 
       <Card>
         <CardHeader>

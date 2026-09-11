@@ -32,7 +32,16 @@ export function meta() {
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const token = new URL(request.url).searchParams.get("token") ?? "";
   const valid = token ? await consumeInviteToken(context, token) : null;
-  return { token, valid: Boolean(valid) };
+  // First-timers (imported/invited, no password yet) get welcome copy;
+  // everyone else is doing a routine reset.
+  let firstTime = false;
+  if (valid) {
+    const [customer] = await context.db<{ first_time: boolean }[]>`
+      SELECT password_hash = '' AS first_time FROM customers WHERE id = ${valid.customer_id}
+    `;
+    firstTime = customer?.first_time ?? false;
+  }
+  return { token, valid: Boolean(valid), firstTime };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -56,7 +65,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function SetPassword() {
-  const { token, valid } = useLoaderData<typeof loader>();
+  const { token, valid, firstTime } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -65,10 +74,15 @@ export default function SetPassword() {
     <div className="mx-auto flex max-w-md flex-col gap-6 py-10">
       <Card>
         <CardHeader>
-          <CardTitle>Set your password</CardTitle>
+          <CardTitle>
+            {firstTime ? "Welcome to the new trade portal" : "Set your password"}
+          </CardTitle>
           <CardDescription>
-            Choose a password for your Furniture Shack trade account — you'll be signed in
-            straight away.
+            {firstTime
+              ? "Your trade account has come across from our old ordering system — " +
+                "choose a password and you're in, with your trade pricing and live stock."
+              : "Choose a password for your Furniture Shack trade account — you'll be " +
+                "signed in straight away."}
           </CardDescription>
         </CardHeader>
         <CardContent>

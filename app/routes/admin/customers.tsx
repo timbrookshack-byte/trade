@@ -11,8 +11,11 @@ import { requireUser } from "~/lib/auth.server";
 import { createInviteToken, type Customer } from "~/lib/customer-auth.server";
 import { businessTypeLabel } from "~/lib/customers";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
+import { runLaunchInviteDrip, requeueUnactivated } from "~/lib/invites.server";
+import { getSettings, setSettings } from "~/lib/settings.server";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
@@ -70,7 +73,35 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       END
     ORDER BY ${db.unsafe(SORTS[sort])} ${db.unsafe(dir === "asc" ? "ASC" : "DESC")} NULLS LAST
   `;
-  return { customers, filter, sort, dir };
+  const [inviteStats] = await db<
+    { to_invite: number; invited: number; activated: number; sent_today: number }[]
+  >`
+    SELECT count(*) FILTER (
+             WHERE approved AND active AND password_hash = '' AND invited_at IS NULL
+           )::int AS to_invite,
+           count(*) FILTER (WHERE invited_at IS NOT NULL)::int AS invited,
+           count(*) FILTER (WHERE invited_at IS NOT NULL AND password_hash <> '')::int AS activated,
+           count(*) FILTER (
+             WHERE (invited_at AT TIME ZONE 'Australia/Brisbane')::date
+                 = (now() AT TIME ZONE 'Australia/Brisbane')::date
+           )::int AS sent_today
+    FROM customers
+  `;
+  const campaignSettings = await getSettings(context, [
+    "launch_invites_enabled",
+    "launch_invites_daily_cap",
+  ]);
+  return {
+    customers,
+    filter,
+    sort,
+    dir,
+    inviteCampaign: {
+      ...inviteStats,
+      enabled: campaignSettings.launch_invites_enabled === "true",
+      cap: Number(campaignSettings.launch_invites_daily_cap) || 80,
+    },
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -78,6 +109,41 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const db = context.db;
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
+
+  // Launch invite campaign controls (admin-only — they email the customer base).
+  if (intent.startsWith("invites-")) {
+    await requireUser(context, request, { role: "admin" });
+    if (intent === "invites-start" || intent === "invites-pause") {
+      const cap = Math.max(1, Math.trunc(Number(form.get("cap")) || 80));
+      await setSettings(context, {
+        launch_invites_enabled: intent === "invites-start" ? "true" : "false",
+        launch_invites_daily_cap: String(cap),
+      });
+      return {
+        ok:
+          intent === "invites-start"
+            ? `Launch invites running — up to ${cap} emails/day go out with the 15-minute cron.`
+            : "Launch invites paused. Already-sent links keep working.",
+      };
+    }
+    if (intent === "invites-batch") {
+      const result = await runLaunchInviteDrip(context, { force: true });
+      if (result.skipped && result.sent === 0) {
+        return { error: `No invites sent — ${result.skipped}.` };
+      }
+      return {
+        ok: `${result.sent} invite(s) sent just now (${result.sentToday}/${result.cap} today, ${result.remainingTotal} still to go).`,
+      };
+    }
+    if (intent === "invites-requeue") {
+      const count = await requeueUnactivated(context, 7);
+      return {
+        ok: `${count} customer(s) invited 7+ days ago without setting a password re-queued — the drip will email them again.`,
+      };
+    }
+    return { error: "Unknown action." };
+  }
+
   const id = Number(form.get("id"));
   if (!Number.isInteger(id)) return { error: "Invalid customer." };
 
@@ -154,7 +220,7 @@ function SortHeader({
 }
 
 export default function CustomersPage() {
-  const { customers, filter, sort, dir } = useLoaderData<typeof loader>();
+  const { customers, filter, sort, dir, inviteCampaign } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -182,6 +248,60 @@ export default function CustomersPage() {
           {actionData.ok}
         </Alert>
       )}
+      {(inviteCampaign.to_invite > 0 || inviteCampaign.enabled || inviteCampaign.invited > 0) && (
+        <Card>
+          <CardContent className="flex flex-wrap items-end gap-x-6 gap-y-3 pt-6">
+            <div className="mr-auto">
+              <p className="font-semibold">Launch invites</p>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Emails imported customers a personal set-password link, most recent old-portal
+                orders first — {inviteCampaign.to_invite} awaiting an invite,{" "}
+                {inviteCampaign.invited} sent ({inviteCampaign.activated} have set a password),{" "}
+                {inviteCampaign.sent_today}/{inviteCampaign.cap} today.
+                {inviteCampaign.enabled
+                  ? " Running — batches go out with the 15-minute cron."
+                  : " Paused."}
+              </p>
+            </div>
+            <Form method="post" className="flex items-end gap-2">
+              <input
+                type="hidden"
+                name="intent"
+                value={inviteCampaign.enabled ? "invites-pause" : "invites-start"}
+              />
+              <div className="flex flex-col gap-1">
+                <label htmlFor="cap" className="text-xs font-medium text-muted-foreground">
+                  Max emails/day
+                </label>
+                <Input
+                  id="cap"
+                  name="cap"
+                  type="number"
+                  min={1}
+                  defaultValue={inviteCampaign.cap}
+                  className="h-9 w-24"
+                />
+              </div>
+              <Button type="submit" disabled={busy}>
+                {inviteCampaign.enabled ? "Pause" : "Start sending"}
+              </Button>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="intent" value="invites-batch" />
+              <Button type="submit" variant="outline" disabled={busy}>
+                Send a batch now
+              </Button>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="intent" value="invites-requeue" />
+              <Button type="submit" variant="outline" disabled={busy}>
+                Re-invite stragglers (7+ days)
+              </Button>
+            </Form>
+          </CardContent>
+        </Card>
+      )}
+
       {actionData && "error" in actionData && (
         <Alert variant="destructive">{actionData.error}</Alert>
       )}
