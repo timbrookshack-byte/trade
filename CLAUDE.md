@@ -301,6 +301,16 @@ value stores a jsonb string, not an array). The rules:
   Self-serve forgot-password: /trade/forgot (linked from login) emails a
   24-hour single-use reset link via the same password_resets table; the
   response never reveals whether an email has an account.
+  **Launch invite campaign** (`app/lib/invites.server.ts`, go-live tooling):
+  while settings `launch_invites_enabled='true'`, the 15-min cron drips
+  branded set-password invite emails to approved passwordless customers —
+  ≤25/run, ≤`launch_invites_daily_cap`/Brisbane-day (default 80; keep under
+  the Resend plan's sending limits), most recent `last_order_external`
+  (old-portal last order, captured/backfilled by the CSV import) first.
+  Campaign card on /admin/customers: start/pause + cap, "Send a batch now",
+  "Re-invite stragglers", live counts; `customers.invited_at` tracks sends.
+  The apply form redirects existing emails to the reset flow; the
+  set-password page shows welcome copy to first-timers (empty password_hash).
 - Orders: list by status, order detail, record payments (incl. part-payments),
   status transitions, packing slip / invoice PDF (GST invoice — ABN, GST
   breakdown).
