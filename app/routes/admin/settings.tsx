@@ -8,6 +8,7 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
+import { sendTestEmail } from "~/lib/email.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
@@ -140,6 +141,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (secret) entries.shopify_client_secret = secret;
     await setSettings(context, entries);
     return { ok: "Shopify settings saved — now click Connect to Shopify." };
+  }
+
+  if (intent === "test-email") {
+    const me = await requireUser(context, request, { role: "admin" });
+    const result = await sendTestEmail(context, me.email);
+    return result.ok
+      ? { ok: `Test email sent to ${me.email}. ${result.detail}` }
+      : { error: `Test email failed. ${result.detail}` };
   }
 
   if (intent === "emails") {
@@ -688,7 +697,7 @@ export default function SettingsPage() {
                 <Input
                   id="email_from"
                   name="email_from"
-                  placeholder="trade@thefurnitureshack.trade"
+                  placeholder="trade@thefurnitureshack.com.au (domain must be verified in Resend)"
                   defaultValue={settings.email_from ?? ""}
                 />
               </div>
@@ -707,6 +716,16 @@ export default function SettingsPage() {
                 Save email settings
               </Button>
             </div>
+          </Form>
+          <Form method="post" className="mt-4 border-t border-border pt-4">
+            <input type="hidden" name="intent" value="test-email" />
+            <Button type="submit" variant="outline" disabled={busy}>
+              Send a test email to me
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Sends to your admin login address and shows Resend's actual response up top —
+              including the exact error if the key is wrong or the from-domain isn't verified.
+            </p>
           </Form>
         </CardContent>
       </Card>

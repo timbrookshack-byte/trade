@@ -31,6 +31,51 @@ async function send(
   }
 }
 
+/**
+ * Diagnostic send: synchronous, and returns exactly what happened — which
+ * setting is missing, or Resend's real API response. Normal sends stay
+ * fire-and-forget; this exists so "no email arrived" can be diagnosed from
+ * the Settings screen instead of guessing.
+ */
+export async function sendTestEmail(context: AppLoadContext, to: string) {
+  const rows = await context.db<{ key: string; value: string }[]>`
+    SELECT key, value FROM settings WHERE key IN ('resend_api_key', 'email_from')
+  `;
+  const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  if (!settings.resend_api_key) {
+    return { ok: false, detail: "The Resend API key setting is empty — paste a key and save first." };
+  }
+  if (!settings.email_from) {
+    return { ok: false, detail: "The from-address setting is empty — set it and save first." };
+  }
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.resend_api_key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: settings.email_from,
+        to: [to],
+        subject: "Trade portal test email",
+        html: brandedEmail(
+          `<p>This is a test email from the trade portal's Settings page.</p>
+           <p>If you're reading it, sending works: the Resend key is valid and the
+           from address (${settings.email_from}) is on a verified domain.</p>`,
+        ),
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const body = (await response.text()).slice(0, 400);
+    return response.ok
+      ? { ok: true, detail: `Resend accepted it (${body}) — check the inbox for ${to}, and it now shows in Resend's Emails log.` }
+      : { ok: false, detail: `Resend refused it — HTTP ${response.status}: ${body}` };
+  } catch (err) {
+    return { ok: false, detail: `Couldn't reach Resend's API: ${String(err)}` };
+  }
+}
+
 /** Queue an email without blocking the response. Errors are logged, never thrown. */
 export function queueEmail(
   context: AppLoadContext,
