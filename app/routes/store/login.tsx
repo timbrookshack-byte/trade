@@ -40,6 +40,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const password = String(form.get("password") ?? "");
   const customer = await verifyCustomerLogin(context, email, password);
   if (!customer) {
+    // A migrated (imported) account has no password yet — old-portal
+    // passwords never came across. Telling them exactly that beats an
+    // "invalid password" they'll retry three times and then ring about.
+    const [pending] = await context.db<{ id: number }[]>`
+      SELECT id FROM customers
+      WHERE lower(email) = lower(${email}) AND active AND password_hash = ''
+    `;
+    if (pending) return { noPassword: true } as const;
     return { error: "Invalid email or password." };
   }
   // Fireworks on 360's CRM feed — guarded inside, never affects sign-in.
@@ -61,7 +69,19 @@ export default function TradeLogin() {
         </CardHeader>
         <CardContent>
           <Form method="post" className="flex flex-col gap-4">
-            {actionData?.error && <Alert variant="destructive">{actionData.error}</Alert>}
+            {actionData && "noPassword" in actionData && actionData.noPassword && (
+              <Alert>
+                Your trade account has come across from our old ordering system, so it
+                doesn't have a password yet — old passwords don't carry over.{" "}
+                <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
+                  Set your password here
+                </Link>{" "}
+                and you're in.
+              </Alert>
+            )}
+            {actionData && "error" in actionData && actionData.error && (
+              <Alert variant="destructive">{actionData.error}</Alert>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" name="email" type="email" required autoComplete="email" />
