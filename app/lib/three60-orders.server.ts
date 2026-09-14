@@ -294,3 +294,47 @@ export async function relayPaymentTo360(context: AppLoadContext, order: Order, p
     console.log("360 payment relay failed:", String(err));
   }
 }
+
+/**
+ * Login ping → 360's CRM feed ("fireworks", 360 v001.668): POST
+ * /api/trade/portal-login with the customer's email on every successful
+ * portal sign-in. 360 de-dupes to one firework per customer per day, so no
+ * throttling here; matched:false in the response just means no 360 customer
+ * matched. Not gated by orders_360_enabled — it only needs the feed
+ * URL + token. Awaited with a hard timeout rather than waitUntil (background
+ * fetches get cancelled on Workers) but NEVER throws — a 360 hiccup must
+ * not affect or fail the sign-in.
+ */
+export async function notify360Login(
+  db: Sql,
+  customer: { email: string; business_name?: string; contact_name?: string; phone?: string },
+) {
+  try {
+    const rows = await db<{ key: string; value: string }[]>`
+      SELECT key, value FROM settings WHERE key IN ('trade_api_url', 'trade_api_token')
+    `;
+    const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    if (!s.trade_api_url || !s.trade_api_token) return;
+    const url = s.trade_api_url.replace(/\/products\/?$/, "") + "/portal-login";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${s.trade_api_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: customer.email,
+        name: customer.business_name || customer.contact_name || "",
+        phone: customer.phone || "",
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    console.log(
+      "360 portal-login:",
+      response.status,
+      response.ok ? JSON.stringify(await response.json()) : await response.text(),
+    );
+  } catch (err) {
+    console.log("360 portal-login failed:", String(err));
+  }
+}

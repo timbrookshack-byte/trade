@@ -12,6 +12,7 @@ import {
   consumeInviteToken,
   createCustomerSession,
 } from "~/lib/customer-auth.server";
+import { notify360Login } from "~/lib/three60-orders.server";
 import { hashPassword } from "~/lib/auth.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -61,6 +62,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
     WHERE id = ${reset.customer_id}
   `;
   await context.db`UPDATE password_resets SET used_at = now() WHERE id = ${reset.id}`;
+  // Setting a password signs the customer in — that's a login, so it
+  // fireworks on 360's CRM feed too (guarded inside, never blocks).
+  const [customer] = await context.db<
+    { email: string; business_name: string; contact_name: string; phone: string }[]
+  >`
+    SELECT email, business_name, contact_name, phone FROM customers
+    WHERE id = ${reset.customer_id}
+  `;
+  if (customer) await notify360Login(context.db, customer);
   return createCustomerSession(context, reset.customer_id, "/products");
 }
 

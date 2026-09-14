@@ -145,6 +145,15 @@ dispatch/complete flows through the same mirror. Auth for all endpoints: same
    from till EOD, and accepts either the quote's or successor invoice's number.
 - (still requested, separate) `POST /api/trade/customers` — upsert portal
   trade customers into 360 (by email/ABN). Contract to be agreed later.
+- `POST /api/trade/portal-login` (360 v001.668, "fireworks" on the CRM feed)
+  — the portal calls it on EVERY successful customer sign-in (login page AND
+  set-password auto-login), body `{ email, name, phone }` (no stored 360
+  customer_id — email is the match key), same Bearer token. 360 de-dupes to
+  one firework/customer/day; `matched: false` = no 360 customer matched.
+  Portal client: `notify360Login` in three60-orders.server.ts — NOT gated by
+  `orders_360_enabled`, awaited with a 3s timeout (waitUntil fetches get
+  cancelled on Workers) and never throws, so a 360 outage can't touch
+  sign-in. Staging endpoint: https://staging.shack360.app/api/trade/portal-login.
 
 Portal behaviour (all ✅ built, gated by settings `orders_360_enabled='true'`):
 push on order submit (cron retries failures); mirror overwrites portal lines

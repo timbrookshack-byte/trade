@@ -12,6 +12,7 @@ import {
   getCustomer,
   verifyCustomerLogin,
 } from "~/lib/customer-auth.server";
+import { notify360Login } from "~/lib/three60-orders.server";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -41,6 +42,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
   if (!customer) {
     return { error: "Invalid email or password." };
   }
+  // Fireworks on 360's CRM feed — guarded inside, never affects sign-in.
+  await notify360Login(context.db, customer);
   return createCustomerSession(context, customer.id, "/products");
 }
 
