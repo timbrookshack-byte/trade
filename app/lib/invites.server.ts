@@ -13,6 +13,27 @@ import { getSettings } from "./settings.server";
  */
 const BATCH_PER_RUN = 25;
 
+/** The launch invite email — also used by the admin "email me a preview". */
+export function launchInviteEmail(contactName: string, inviteUrl: string, origin: string) {
+  return {
+    subject: "Your Furniture Shack trade account is ready",
+    html: brandedEmail(
+      `<p>Hi ${contactName},</p>
+       <p>We've moved trade ordering to our new trade portal — your account has
+       come across with it, so there's nothing to re-apply for. Set a password
+       and you're in, with your trade pricing and live stock:</p>
+       <p style="margin:24px 0;">
+         <a href="${inviteUrl}"
+            style="background:#111; color:#fff; padding:12px 24px; border-radius:6px;
+                   text-decoration:none; font-weight:bold;">Set my password</a>
+       </p>
+       <p>This link is valid for 14 days. If it expires, use
+       "Forgot your password?" on the <a href="${origin}/trade/login">login
+       page</a> with this email address and we'll send a fresh one.</p>`,
+    ),
+  };
+}
+
 export interface DripResult {
   skipped?: string;
   sent: number;
@@ -75,21 +96,7 @@ export async function runLaunchInviteDrip(
     const path = await createInviteToken(context, customer.id);
     queueEmail(context, {
       to: [customer.email],
-      subject: "Your Furniture Shack trade account is ready",
-      html: brandedEmail(
-        `<p>Hi ${customer.contact_name},</p>
-         <p>We've moved trade ordering to our new trade portal — your account has
-         come across with it, so there's nothing to re-apply for. Set a password
-         and you're in, with your trade pricing and live stock:</p>
-         <p style="margin:24px 0;">
-           <a href="${origin}${path}"
-              style="background:#111; color:#fff; padding:12px 24px; border-radius:6px;
-                     text-decoration:none; font-weight:bold;">Set my password</a>
-         </p>
-         <p>This link is valid for 14 days. If it expires, use
-         "Forgot your password?" on the <a href="${origin}/trade/login">login
-         page</a> with this email address and we'll send a fresh one.</p>`,
-      ),
+      ...launchInviteEmail(customer.contact_name, `${origin}${path}`, origin),
     });
     await db`UPDATE customers SET invited_at = now() WHERE id = ${customer.id}`;
   }

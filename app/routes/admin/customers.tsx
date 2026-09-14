@@ -11,7 +11,7 @@ import { requireUser } from "~/lib/auth.server";
 import { createInviteToken, type Customer } from "~/lib/customer-auth.server";
 import { businessTypeLabel } from "~/lib/customers";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
-import { runLaunchInviteDrip, requeueUnactivated } from "~/lib/invites.server";
+import { launchInviteEmail, runLaunchInviteDrip, requeueUnactivated } from "~/lib/invites.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -112,7 +112,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   // Launch invite campaign controls (admin-only — they email the customer base).
   if (intent.startsWith("invites-")) {
-    await requireUser(context, request, { role: "admin" });
+    const me = await requireUser(context, request, { role: "admin" });
+    if (intent === "invites-preview") {
+      // The exact launch email, sent to the admin themselves — the real one
+      // differs only in the customer's name and a working link.
+      const origin = new URL(request.url).origin;
+      queueEmail(context, {
+        to: [me.email],
+        ...launchInviteEmail(me.name, `${origin}/trade/set-password?token=PREVIEW`, origin),
+      });
+      return {
+        ok: `Preview sent to ${me.email} (needs Resend configured). The real one differs only in the customer's name and a working link.`,
+      };
+    }
     if (intent === "invites-start" || intent === "invites-pause") {
       const cap = Math.max(1, Math.trunc(Number(form.get("cap")) || 80));
       await setSettings(context, {
@@ -284,6 +296,12 @@ export default function CustomersPage() {
               </div>
               <Button type="submit" disabled={busy}>
                 {inviteCampaign.enabled ? "Pause" : "Start sending"}
+              </Button>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="intent" value="invites-preview" />
+              <Button type="submit" variant="outline" disabled={busy}>
+                Email me a preview
               </Button>
             </Form>
             <Form method="post">
