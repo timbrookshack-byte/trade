@@ -1,5 +1,6 @@
 import type { AppLoadContext } from "react-router";
 import { CARD_TERMS, PAYMENT_POLICY, type PaymentInfo } from "./payment";
+import { formatCurrency } from "./utils";
 
 /**
  * Emails via Resend (same as 360). Settings: resend_api_key (secret),
@@ -154,11 +155,23 @@ export const emailTemplates = {
        <p><a href="https://thefurnitureshack.trade/account/orders">View your orders</a></p>`,
     ),
   }),
-  orderSubmittedTeam: (orderNumber: string, businessName: string, totalIncGst: string) => ({
+  orderSubmittedTeam: (
+    orderNumber: string,
+    businessName: string,
+    totalIncGst: string,
+    belowMinimumExGst?: number | null,
+  ) => ({
     subject: `New order ${orderNumber} — ${businessName}`,
     html: wrap(
       `<p><strong>${businessName}</strong> just submitted order
        <strong>${orderNumber}</strong> (${totalIncGst} inc GST).</p>
+       ${
+         belowMinimumExGst
+           ? `<p><strong>First order, under the ${formatCurrency(belowMinimumExGst)} ex GST
+              minimum.</strong> They've been told we'll be in touch to work out how we can
+              help with their project.</p>`
+           : ""
+       }
        <p><a href="https://thefurnitureshack.trade/admin/orders">Open orders in admin</a></p>`,
     ),
   }),

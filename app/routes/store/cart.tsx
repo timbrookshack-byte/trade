@@ -14,6 +14,8 @@ import { createOrder } from "~/lib/orders.server";
 import { DELIVERY_METHODS, needsDeliveryAddress } from "~/lib/orders";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { getPaymentInfo } from "~/lib/payment.server";
+import { minimumSpendCheck } from "~/lib/minimum-spend.server";
+import { minimumSpendNotice } from "~/lib/minimum-spend";
 import { pushOrderTo360 } from "~/lib/three60-orders.server";
 import { productPhoto, type Product } from "~/lib/products";
 import { exGst, formatCurrency } from "~/lib/utils";
@@ -49,8 +51,13 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   if (!customer) throw redirect("/trade/login?from=cart");
   const lines = await loadCartLines(context, request);
   const total = lines.reduce((sum, l) => sum + l.qty * Number(l.product.trade_price), 0);
+  // First-order minimum spend — a soft heads-up, never a block on submitting.
+  const minimumSpend = customer.approved
+    ? await minimumSpendCheck(context, { customerId: customer.id, totalIncGst: total })
+    : null;
   return {
     approved: customer.approved,
+    minimumSpend,
     address: customer.address,
     lines: lines.map((l) => ({
       sku: l.sku,
@@ -125,6 +132,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // and the cron retries; the customer's submit never breaks either way.
     const push = await pushOrderTo360(context.db, orderId);
     if (!push.ok) console.log("360 order push:", push.error);
+    const belowMinimum = await minimumSpendCheck(context, {
+      customerId: customer.id,
+      totalIncGst: Number(order.total_inc_gst),
+      orderId,
+    });
     const payment = await getPaymentInfo(context);
     queueEmail(context, {
       to: [customer.email],
@@ -134,7 +146,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (notify) {
       queueEmail(context, {
         to: [notify],
-        ...emailTemplates.orderSubmittedTeam(order.order_number, customer.business_name, total),
+        ...emailTemplates.orderSubmittedTeam(
+          order.order_number,
+          customer.business_name,
+          total,
+          belowMinimum,
+        ),
       });
     }
     return redirect(`/account/orders/${orderId}?placed=1`, {
@@ -145,7 +162,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function CartPage() {
-  const { approved, address, lines, total } = useLoaderData<typeof loader>();
+  const { approved, address, lines, total, minimumSpend } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -292,6 +309,11 @@ export default function CartPage() {
                     <Label htmlFor="note">Order note (optional)</Label>
                     <Textarea id="note" name="note" rows={2} placeholder="PO number, delivery instructions…" />
                   </div>
+                  {minimumSpend != null && (
+                    <p className="border-l-2 border-border pl-3 text-sm text-muted-foreground">
+                      {minimumSpendNotice(minimumSpend)}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Submitting sends the order to the trade team. You'll receive a GST invoice
                     with payment options (credit card by phone, or direct deposit) — payment in

@@ -337,6 +337,15 @@ value stores a jsonb string, not an array). The rules:
   "Low" / "Incoming — ETA Aug"), cart → submit order (no online card payment in
   phase 1 — orders land in admin and are invoiced; payment upfront by EFT,
   no credit accounts), order history + statuses, reorder button.
+- **Minimum first-order spend** (`minimum_order_amount`, Settings → Trade
+  ordering; default $5,000 ex GST): a NEW customer (no prior non-cancelled
+  order) whose cart is under it gets a deliberately quiet note above the
+  submit button and on the order confirmation page — "we'll be in touch to
+  discuss and work out how we can help with your project"
+  (`minimumSpendNotice`). It NEVER blocks submitting, is never shown to
+  repeat customers, and disappears once the team confirms the order. The
+  team sees it on the order-submitted notification email and as an amber
+  badge on the admin order page. Logic: `app/lib/minimum-spend.server.ts`.
 - Phase 2+: Stripe for card-paying customers, live stock via the orders API.
 
 ## Emails (use Resend, same as 360)
@@ -434,6 +443,8 @@ registration received/approved. Domain-verified sender.
 the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5),
 `shopify_domain`, `shopify_admin_token` (secret — write-only in the UI),
 `resend_api_key` (secret), `email_from`, `email_notify`,
+`minimum_order_amount` (minimum first-order spend EX GST for new trade
+customers, default 5000 — `app/lib/minimum-spend.ts`; 0 turns it off),
 `payment_phone`, `payment_account_name`, `payment_bsb`,
 `payment_account_number`, `payment_remittance_email` (payment options —
 defaults hardcoded in `app/lib/payment.ts`; shown on invoices, customer
