@@ -71,7 +71,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     WHERE id = ${reset.customer_id}
   `;
   if (customer) await notify360Login(context.db, customer);
-  return createCustomerSession(context, reset.customer_id, "/products");
+  // Same landing as a normal sign-in — the home page.
+  return createCustomerSession(context, reset.customer_id, "/");
 }
 
 export default function SetPassword() {
