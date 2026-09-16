@@ -11,6 +11,7 @@ import { getCustomer } from "~/lib/customer-auth.server";
 import { readCart } from "~/lib/cart.server";
 import { getSettings } from "~/lib/settings.server";
 import { cn, instagramInfo } from "~/lib/utils";
+import { HeaderSearch } from "~/components/header-search";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const [customer, settings, cart] = await Promise.all([
@@ -94,6 +95,7 @@ export default function StoreLayout() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
+            <HeaderSearch />
             {customer ? (
               <>
                 <NavLink to="/account/orders" className="underline-offset-4 hover:underline">
