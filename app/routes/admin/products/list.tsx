@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   Form,
   Link,
@@ -92,10 +93,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   // Actions on ticked rows.
-  const ids = form
-    .getAll("ids")
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n > 0);
+  const ids = [
+    ...new Set(
+      form
+        .getAll("ids")
+        .map(Number)
+        .filter((n) => Number.isInteger(n) && n > 0),
+    ),
+  ];
   if (
     intent === "selected-activate" ||
     intent === "selected-deactivate" ||
@@ -182,6 +187,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
   return null;
 }
 
+/**
+ * Ticked rows live in the browser, not the DOM of the current table: the
+ * trade team builds a product sheet by searching, ticking, searching again,
+ * and a GET navigation would otherwise wipe every earlier tick.
+ */
+const SELECTION_KEY = "tp.admin.products.selection";
+
 export default function ProductsList() {
   const { products, categories, lastSync, filter, search, category, discountPercent } =
     useLoaderData<typeof loader>();
@@ -195,6 +207,50 @@ export default function ProductsList() {
   const unpricedCount = products.filter(
     (p: Product) => p.source === "shack360" && p.trade_price == null && p.rrp_reference != null,
   ).length;
+
+  const [selected, setSelected] = useState<number[]>([]);
+  const restored = useRef(false);
+  // Restored after mount (not in the initial state) so server and client
+  // render the same markup; sessionStorage keeps the working set through a
+  // reload or a trip to a product's edit page, and clears with the tab.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SELECTION_KEY);
+      const saved = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(saved)) {
+        setSelected(saved.filter((n: unknown) => typeof n === "number"));
+      }
+    } catch {
+      // Blocked storage — ticks still survive searches, just not a reload.
+    }
+    restored.current = true;
+  }, []);
+  useEffect(() => {
+    if (!restored.current) return;
+    try {
+      sessionStorage.setItem(SELECTION_KEY, JSON.stringify(selected));
+    } catch {
+      // As above — nothing to do, the in-page selection still works.
+    }
+  }, [selected]);
+
+  const selectedSet = new Set(selected);
+  const visibleIds = products.map((p: Product) => p.id);
+  const allVisibleTicked = visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id));
+  // Ticked earlier, filtered out of the list now — these ride along as
+  // hidden inputs so a bulk action still covers them.
+  const offList = selected.filter((id) => !visibleIds.includes(id));
+
+  function toggle(id: number, on: boolean) {
+    setSelected((prev) => (on ? [...prev, id] : prev.filter((n) => n !== id)));
+  }
+  function toggleVisible(on: boolean) {
+    setSelected((prev) =>
+      on
+        ? [...prev, ...visibleIds.filter((id) => !prev.includes(id))]
+        : prev.filter((id) => !visibleIds.includes(id)),
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -320,8 +376,20 @@ export default function ProductsList() {
       <Form method="post">
       <Card>
         <CardContent className="pt-6">
+          {offList.map((id) => (
+            <input key={id} type="hidden" name="ids" value={id} />
+          ))}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">With ticked rows:</p>
+            <p className="text-sm text-muted-foreground">
+              {selected.length === 0 ? (
+                "With ticked rows:"
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{selected.length} ticked</span>
+                  {offList.length > 0 && <> ({offList.length} not on this list)</>} —
+                </>
+              )}
+            </p>
             <Button type="submit" name="intent" value="selected-activate" variant="outline" size="sm">
               Activate
             </Button>
@@ -340,6 +408,21 @@ export default function ProductsList() {
             <Button type="submit" name="intent" value="selected-quote" variant="outline" size="sm">
               Create quote
             </Button>
+            {selected.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected([])}
+                className="text-muted-foreground"
+              >
+                Clear ticks
+              </Button>
+            )}
+            <p className="w-full text-xs text-muted-foreground">
+              Ticks are kept as you search and filter — search, tick, search again, then build
+              the sheet or quote from everything you've ticked.
+            </p>
           </div>
           <Table>
             <TableHeader>
@@ -347,16 +430,10 @@ export default function ProductsList() {
                 <TableHead className="w-8">
                   <input
                     type="checkbox"
-                    aria-label="Select all"
+                    aria-label="Select all on this list"
                     className="size-4 accent-primary"
-                    onChange={(e) => {
-                      const checked = e.currentTarget.checked;
-                      e.currentTarget.form
-                        ?.querySelectorAll<HTMLInputElement>('input[name="ids"]')
-                        .forEach((el) => {
-                          el.checked = checked;
-                        });
-                    }}
+                    checked={allVisibleTicked}
+                    onChange={(e) => toggleVisible(e.currentTarget.checked)}
                   />
                 </TableHead>
                 <TableHead>SKU</TableHead>
@@ -385,6 +462,8 @@ export default function ProductsList() {
                       value={p.id}
                       aria-label={`Select ${p.sku}`}
                       className="size-4 accent-primary"
+                      checked={selectedSet.has(p.id)}
+                      onChange={(e) => toggle(p.id, e.currentTarget.checked)}
                     />
                   </TableCell>
                   <TableCell className="font-mono text-xs">{p.sku}</TableCell>
