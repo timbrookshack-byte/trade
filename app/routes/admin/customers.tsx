@@ -57,12 +57,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     : "pending";
   const sort = SORTS[url.searchParams.get("sort") ?? ""] ? url.searchParams.get("sort")! : "applied";
   const dir = url.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const search = (url.searchParams.get("q") ?? "").trim();
+  const term = search ? `%${search}%` : null;
   const db = context.db;
   const customers = await db<(Customer & { last_login_at: string | null; last_order_at: string | null })[]>`
     SELECT c.id, c.business_name, c.abn, c.business_type, c.contact_name, c.email, c.phone,
            c.address, c.price_tier, c.credit_terms, c.approved, c.approved_at, c.active,
            c.created_at, c.last_login_at,
            c.how_heard, c.website, c.social_media, c.current_projects, c.additional_info,
+           c.existing_client, c.last_order_external,
            (SELECT MAX(o.submitted_at) FROM orders o
             WHERE o.customer_id = c.id AND o.status <> 'quote') AS last_order_at
     FROM customers c
@@ -71,6 +74,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
         WHEN 'approved' THEN c.approved AND c.active
         ELSE TRUE
       END
+      AND (${term}::text IS NULL
+           OR c.business_name ILIKE ${term} OR c.contact_name ILIKE ${term}
+           OR c.email ILIKE ${term} OR c.phone ILIKE ${term}
+           OR replace(c.abn, ' ', '') ILIKE replace(${term}::text, ' ', ''))
     ORDER BY ${db.unsafe(SORTS[sort])} ${db.unsafe(dir === "asc" ? "ASC" : "DESC")} NULLS LAST
   `;
   const [inviteStats] = await db<
@@ -96,6 +103,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     filter,
     sort,
     dir,
+    search,
     inviteCampaign: {
       ...inviteStats,
       enabled: campaignSettings.launch_invites_enabled === "true",
@@ -180,6 +188,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
     `;
     return { ok: "Approval revoked — prices are hidden for this customer." };
   }
+  if (intent === "toggle-existing") {
+    // Drives the first-order minimum spend: existing clients never see it.
+    const [customer] = await db<{ existing_client: boolean; business_name: string }[]>`
+      UPDATE customers SET existing_client = NOT existing_client, updated_at = now()
+      WHERE id = ${id}
+      RETURNING existing_client, business_name
+    `;
+    if (!customer) return { error: "Customer not found." };
+    return {
+      ok: customer.existing_client
+        ? `${customer.business_name} marked an existing client — no first-order minimum spend notice.`
+        : `${customer.business_name} marked a new client — the first-order minimum spend notice applies.`,
+    };
+  }
   if (intent === "toggle-active") {
     await db`UPDATE customers SET active = NOT active, updated_at = now() WHERE id = ${id}`;
     return { ok: "Customer updated." };
@@ -211,18 +233,22 @@ function SortHeader({
   filter,
   sort,
   dir,
+  search,
 }: {
   label: string;
   keyName: string;
   filter: string;
   sort: string;
   dir: string;
+  search: string;
 }) {
   const isActive = sort === keyName;
   const nextDir = isActive && dir === "desc" ? "asc" : "desc";
   return (
     <Link
-      to={`/admin/customers?filter=${filter}&sort=${keyName}&dir=${nextDir}`}
+      to={`/admin/customers?filter=${filter}&sort=${keyName}&dir=${nextDir}${
+        search ? `&q=${encodeURIComponent(search)}` : ""
+      }`}
       className={cn("underline-offset-4 hover:underline", isActive && "text-foreground")}
     >
       {label}
@@ -232,7 +258,7 @@ function SortHeader({
 }
 
 export default function CustomersPage() {
-  const { customers, filter, sort, dir, inviteCampaign } = useLoaderData<typeof loader>();
+  const { customers, filter, sort, dir, search, inviteCampaign } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -324,11 +350,13 @@ export default function CustomersPage() {
         <Alert variant="destructive">{actionData.error}</Alert>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            to={`/admin/customers?filter=${f.key}&sort=${sort}&dir=${dir}`}
+            to={`/admin/customers?filter=${f.key}&sort=${sort}&dir=${dir}${
+              search ? `&q=${encodeURIComponent(search)}` : ""
+            }`}
             className={cn(
               "rounded-full border px-3 py-1 text-sm",
               filter === f.key
@@ -339,6 +367,28 @@ export default function CustomersPage() {
             {f.label}
           </Link>
         ))}
+        <Form method="get" className="ml-auto flex gap-2">
+          <input type="hidden" name="filter" value={filter} />
+          <input type="hidden" name="sort" value={sort} />
+          <input type="hidden" name="dir" value={dir} />
+          <Input
+            name="q"
+            defaultValue={search}
+            placeholder="Search business, contact, email, phone, ABN…"
+            className="w-72"
+          />
+          <Button type="submit" variant="secondary" disabled={busy}>
+            Search
+          </Button>
+          {search && (
+            <Link
+              to={`/admin/customers?filter=${filter}&sort=${sort}&dir=${dir}`}
+              className="inline-flex h-10 items-center rounded-md px-3 text-sm text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Clear
+            </Link>
+          )}
+        </Form>
       </div>
 
       <Card>
@@ -347,17 +397,17 @@ export default function CustomersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>
-                  <SortHeader label="Business" keyName="business" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Business" keyName="business" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>
-                  <SortHeader label="Applied" keyName="applied" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Applied" keyName="applied" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>
-                  <SortHeader label="Last login" keyName="last_login" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Last login" keyName="last_login" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>
-                  <SortHeader label="Last order" keyName="last_order" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Last order" keyName="last_order" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead />
@@ -367,9 +417,11 @@ export default function CustomersPage() {
               {customers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    {filter === "pending"
-                      ? "No applications waiting — all caught up."
-                      : "No customers here yet."}
+                    {search
+                      ? `No customers match “${search}”${filter === "all" ? "" : " in this list — try All"}.`
+                      : filter === "pending"
+                        ? "No applications waiting — all caught up."
+                        : "No customers here yet."}
                   </TableCell>
                 </TableRow>
               )}
@@ -452,6 +504,19 @@ export default function CustomersPage() {
                       ) : (
                         <Badge variant="secondary">pending</Badge>
                       )}
+                      {c.existing_client ? (
+                        <Badge variant="outline" title="No first-order minimum spend notice">
+                          existing client
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/40 bg-amber-500/15 text-amber-800"
+                          title="A first order under the minimum spend gets the soft notice"
+                        >
+                          new client
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -479,6 +544,13 @@ export default function CustomersPage() {
                         <input type="hidden" name="id" value={c.id} />
                         <Button type="submit" variant="ghost" size="sm" disabled={busy}>
                           Invite link
+                        </Button>
+                      </Form>
+                      <Form method="post" className="inline">
+                        <input type="hidden" name="intent" value="toggle-existing" />
+                        <input type="hidden" name="id" value={c.id} />
+                        <Button type="submit" variant="ghost" size="sm" disabled={busy}>
+                          {c.existing_client ? "Mark new" : "Mark existing"}
                         </Button>
                       </Form>
                       <Form method="post" className="inline">

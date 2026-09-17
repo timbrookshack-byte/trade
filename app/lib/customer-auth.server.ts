@@ -21,6 +21,8 @@ export interface Customer {
   approved_at: string | null;
   active: boolean;
   created_at: string;
+  /** Traded with us before the portal (migrated or marked by the team). */
+  existing_client: boolean;
   how_heard?: string;
   website?: string;
   social_media?: string;
@@ -29,7 +31,8 @@ export interface Customer {
 }
 
 const CUSTOMER_COLS = `id, business_name, abn, business_type, contact_name, email, phone,
-  address, price_tier, credit_terms, approved, approved_at, active, created_at`;
+  address, price_tier, credit_terms, approved, approved_at, active, created_at,
+  existing_client`;
 
 // Separate cookie from the admin session so a trade-team member can be logged
 // into both sides at once.
