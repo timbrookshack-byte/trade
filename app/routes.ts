@@ -47,6 +47,7 @@ export default [
     route("admin/categories/:category", "routes/admin/category-detail.tsx"),
     route("admin/customers", "routes/admin/customers.tsx"),
     route("admin/customers/import", "routes/admin/customers-import.tsx"),
+    route("admin/customers/:id", "routes/admin/customer-edit.tsx"),
     route("admin/dining-sets", "routes/admin/dining-sets.tsx"),
     route("admin/content", "routes/admin/content.tsx"),
     route("admin/projects", "routes/admin/projects.tsx"),

@@ -428,7 +428,14 @@ export default function CustomersPage() {
               {customers.map((c: Customer & { last_login_at: string | null; last_order_at: string | null }) => (
                 <TableRow key={c.id}>
                   <TableCell>
-                    <p className="font-medium">{c.business_name}</p>
+                    <p className="font-medium">
+                      <Link
+                        to={`/admin/customers/${c.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {c.business_name}
+                      </Link>
+                    </p>
                     <p className="font-mono text-xs text-muted-foreground">
                       {c.abn && <>ABN {c.abn} · </>}
                       {businessTypeLabel(c.business_type)}
@@ -521,6 +528,12 @@ export default function CustomersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Link
+                        to={`/admin/customers/${c.id}`}
+                        className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium hover:bg-accent"
+                      >
+                        Edit
+                      </Link>
                       {c.active && !c.approved && (
                         <Form method="post" className="inline">
                           <input type="hidden" name="intent" value="approve" />

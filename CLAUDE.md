@@ -305,6 +305,11 @@ value stores a jsonb string, not an array). The rules:
   search (business/contact/email/phone/ABN, `?q=`, combines with the
   pending/approved/all filter and sort); existing-client badge + "Mark
   existing/new" toggle (drives the first-order minimum spend);
+  **edit a customer** at /admin/customers/:id (business/contact/email/phone/
+  ABN/type/address/tier/terms + the existing-client flag; email is the login
+  and is uniqueness-checked before saving, with activity facts and the
+  read-only application answers alongside). Approve/deactivate/invite stay on
+  the list so the approval email still fires;
   sortable columns (business/applied/last login/last order); CSV import
   (/admin/customers/import — Orderspace export compatible; imported rows are
   approved with NO password) + per-customer invite links (`password_resets`
