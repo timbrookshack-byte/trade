@@ -303,8 +303,17 @@ value stores a jsonb string, not an array). The rules:
   category pages, admin category filter and category detail all include them.
 - Customers: approve registrations, set tiers/terms, view order history;
   search (business/contact/email/phone/ABN, `?q=`, combines with the
-  pending/approved/all filter and sort); existing-client badge + "Mark
+  pending/approved/new-clients/all filter and sort — filters, sorts and the
+  query live in `customers.server.ts`; the filter list and query-string
+  helper are in the client-safe `customers.ts`, since a route component
+  importing VALUES from a *.server module fails the build); existing-client badge + "Mark
   existing/new" toggle (drives the first-order minimum spend);
+  **add a customer** at /admin/customers/new (team-created accounts: approved
+  on the spot, no password invented — it creates the 14-day set-password
+  invite and optionally emails it, `customerInviteEmail`); **CSV export** at
+  /admin/customers/export (Mailchimp-shaped: Email Address + first/last name
+  split, one-line address; exports exactly the rows the list is showing, so
+  the "New clients" filter + Export gives new sign-ups only);
   **edit a customer** at /admin/customers/:id (business/contact/email/phone/
   ABN/type/address/tier/terms + the existing-client flag; email is the login
   and is uniqueness-checked before saving, with activity facts and the

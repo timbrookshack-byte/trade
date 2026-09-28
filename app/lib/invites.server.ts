@@ -34,6 +34,30 @@ export function launchInviteEmail(contactName: string, inviteUrl: string, origin
   };
 }
 
+/**
+ * Invite for an account the team set up (admin "Add customer", or the invite
+ * link on a customer row) — a new account rather than one migrated across,
+ * so the copy doesn't claim their account "came with us".
+ */
+export function customerInviteEmail(contactName: string, inviteUrl: string, origin: string) {
+  return {
+    subject: "Set up your Furniture Shack trade portal login",
+    html: brandedEmail(
+      `<p>Hi ${contactName},</p>
+       <p>Your trade account is ready on our trade portal. Set a password and
+       you're in, with your trade pricing and live stock:</p>
+       <p style="margin:24px 0;">
+         <a href="${inviteUrl}"
+            style="background:#111; color:#fff; padding:12px 24px; border-radius:6px;
+                   text-decoration:none; font-weight:bold;">Set my password</a>
+       </p>
+       <p>This link is valid for 14 days. If it expires, use
+       "Forgot your password?" on the <a href="${origin}/trade/login">login
+       page</a> with this email address and we'll send a fresh one.</p>`,
+    ),
+  };
+}
+
 export interface DripResult {
   skipped?: string;
   sent: number;

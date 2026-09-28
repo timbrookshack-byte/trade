@@ -8,10 +8,16 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
-import { createInviteToken, type Customer } from "~/lib/customer-auth.server";
-import { businessTypeLabel } from "~/lib/customers";
+import { createInviteToken } from "~/lib/customer-auth.server";
+import { businessTypeLabel, CUSTOMER_FILTERS, customerQueryString } from "~/lib/customers";
+import { listCustomers, parseCustomerQuery, type CustomerRow } from "~/lib/customers.server";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
-import { launchInviteEmail, runLaunchInviteDrip, requeueUnactivated } from "~/lib/invites.server";
+import {
+  customerInviteEmail,
+  launchInviteEmail,
+  runLaunchInviteDrip,
+  requeueUnactivated,
+} from "~/lib/invites.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -32,54 +38,14 @@ export function meta() {
   return [{ title: "Customers — Trade Portal" }];
 }
 
-const FILTERS = [
-  { key: "pending", label: "Pending approval" },
-  { key: "approved", label: "Approved" },
-  { key: "all", label: "All" },
-] as const;
-
-type Filter = (typeof FILTERS)[number]["key"];
-
-// Whitelisted sort keys → SQL expressions (used via db.unsafe, never user text).
-const SORTS: Record<string, string> = {
-  business: "lower(c.business_name)",
-  applied: "c.created_at",
-  last_login: "c.last_login_at",
-  last_order: "last_order_at",
-};
+const FILTERS = CUSTOMER_FILTERS;
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
-  const url = new URL(request.url);
-  const filterParam = url.searchParams.get("filter");
-  const filter: Filter = FILTERS.some((f) => f.key === filterParam)
-    ? (filterParam as Filter)
-    : "pending";
-  const sort = SORTS[url.searchParams.get("sort") ?? ""] ? url.searchParams.get("sort")! : "applied";
-  const dir = url.searchParams.get("dir") === "asc" ? "asc" : "desc";
-  const search = (url.searchParams.get("q") ?? "").trim();
-  const term = search ? `%${search}%` : null;
+  const query = parseCustomerQuery(new URL(request.url));
+  const { filter, sort, dir, search } = query;
   const db = context.db;
-  const customers = await db<(Customer & { last_login_at: string | null; last_order_at: string | null })[]>`
-    SELECT c.id, c.business_name, c.abn, c.business_type, c.contact_name, c.email, c.phone,
-           c.address, c.price_tier, c.credit_terms, c.approved, c.approved_at, c.active,
-           c.created_at, c.last_login_at,
-           c.how_heard, c.website, c.social_media, c.current_projects, c.additional_info,
-           c.existing_client, c.last_order_external,
-           (SELECT MAX(o.submitted_at) FROM orders o
-            WHERE o.customer_id = c.id AND o.status <> 'quote') AS last_order_at
-    FROM customers c
-    WHERE CASE ${filter}
-        WHEN 'pending' THEN NOT c.approved AND c.active
-        WHEN 'approved' THEN c.approved AND c.active
-        ELSE TRUE
-      END
-      AND (${term}::text IS NULL
-           OR c.business_name ILIKE ${term} OR c.contact_name ILIKE ${term}
-           OR c.email ILIKE ${term} OR c.phone ILIKE ${term}
-           OR replace(c.abn, ' ', '') ILIKE replace(${term}::text, ' ', ''))
-    ORDER BY ${db.unsafe(SORTS[sort])} ${db.unsafe(dir === "asc" ? "ASC" : "DESC")} NULLS LAST
-  `;
+  const customers = await listCustomers(db, query);
   const [inviteStats] = await db<
     { to_invite: number; invited: number; activated: number; sent_today: number }[]
   >`
@@ -215,12 +181,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (customer) {
       queueEmail(context, {
         to: [customer.email],
-        subject: "Set up your Furniture Shack trade portal login",
-        html: `<p>Hi ${customer.contact_name},</p>
-          <p>Your trade account is ready on our new trade portal. Set your password here
-          (link valid 14 days):</p>
-          <p><a href="${inviteUrl}">${inviteUrl}</a></p>`,
+        ...customerInviteEmail(customer.contact_name, inviteUrl, new URL(request.url).origin),
       });
+      await db`UPDATE customers SET invited_at = now() WHERE id = ${id}`;
     }
     return { ok: `Invite link (emailed if email is configured — valid 14 days): ${inviteUrl}` };
   }
@@ -273,12 +236,27 @@ export default function CustomersPage() {
             check the ABN and business before approving.
           </p>
         </div>
-        <Link
-          to="/admin/customers/import"
-          className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
-        >
-          Import from CSV
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/admin/customers/export?${customerQueryString({ filter, sort, dir, search })}`}
+            className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
+            title="Downloads exactly the customers listed below"
+          >
+            Export CSV
+          </a>
+          <Link
+            to="/admin/customers/import"
+            className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
+          >
+            Import from CSV
+          </Link>
+          <Link
+            to="/admin/customers/new"
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Add customer
+          </Link>
+        </div>
       </div>
 
       {actionData && "ok" in actionData && (
@@ -425,7 +403,7 @@ export default function CustomersPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {customers.map((c: Customer & { last_login_at: string | null; last_order_at: string | null }) => (
+              {customers.map((c: CustomerRow) => (
                 <TableRow key={c.id}>
                   <TableCell>
                     <p className="font-medium">
