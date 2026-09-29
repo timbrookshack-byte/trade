@@ -15,7 +15,7 @@ export async function getMinimumSpend(context: AppLoadContext) {
 }
 
 /**
- * Is this an established trade customer rather than a new sign-up? True when
+ * Is this an established commercial customer rather than a new sign-up? True when
  * any of these hold:
  *
  *  - `existing_client` — everyone migrated from the old ordering system, and
@@ -49,7 +49,7 @@ export async function isExistingClient(db: Sql, customerId: number | null, befor
 /**
  * The minimum-spend threshold to warn about for a cart/order, or null when no
  * notice applies — the threshold is off, the total clears it, or this is an
- * established client rather than a new sign-up. Compared ex GST, the way trade
+ * established client rather than a new sign-up. Compared ex GST, the way commercial
  * prices are quoted. Pass `orderId` for a saved order (excludes it and
  * anything later).
  */

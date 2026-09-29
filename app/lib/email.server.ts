@@ -4,7 +4,7 @@ import { formatCurrency } from "./utils";
 
 /**
  * Emails via Resend (same as 360). Settings: resend_api_key (secret),
- * email_from (verified sender), email_notify (trade team inbox).
+ * email_from (verified sender), email_notify (commercial team inbox).
  * All sends are fire-and-forget through ctx.waitUntil — a missing key or a
  * Resend outage must never break the user-facing flow.
  */
@@ -59,9 +59,9 @@ export async function sendTestEmail(context: AppLoadContext, to: string) {
       body: JSON.stringify({
         from: settings.email_from,
         to: [to],
-        subject: "Trade portal test email",
+        subject: "Commercial portal test email",
         html: brandedEmail(
-          `<p>This is a test email from the trade portal's Settings page.</p>
+          `<p>This is a test email from the commercial portal's Settings page.</p>
            <p>If you're reading it, sending works: the Resend key is valid and the
            from address (${settings.email_from}) is on a verified domain.</p>`,
         ),
@@ -113,36 +113,36 @@ export const brandedEmail = (body: string) => wrap(body);
 
 const wrap = (body: string) => `
   <div style="font-family: Arial, Helvetica, sans-serif; max-width: 560px; margin: 0 auto; color: #1a1a1a;">
-    <p style="letter-spacing: 4px; font-weight: bold; text-transform: uppercase;">The Furniture Shack <span style="color:#d6217f;">Trade</span></p>
+    <p style="letter-spacing: 4px; font-weight: bold; text-transform: uppercase;">The Furniture Shack <span style="color:#d6217f;">Commercial</span></p>
     ${body}
-    <p style="color:#888; font-size:12px; margin-top:32px;">This email was sent by the Furniture Shack trade portal.</p>
+    <p style="color:#888; font-size:12px; margin-top:32px;">This email was sent by the Furniture Shack commercial portal.</p>
   </div>`;
 
 export const emailTemplates = {
   registrationReceived: (contactName: string) => ({
-    subject: "We've received your trade application",
+    subject: "We've received your commercial application",
     html: wrap(
       `<p>Hi ${contactName},</p>
-       <p>Thanks for applying for a trade account with The Furniture Shack. Our team reviews
+       <p>Thanks for applying for a commercial account with The Furniture Shack. Our team reviews
        applications against your business details — usually within one business day.</p>
        <p>We'll email you as soon as your account is approved.</p>`,
     ),
   }),
   registrationReceivedTeam: (businessName: string, email: string) => ({
-    subject: `New trade application: ${businessName}`,
+    subject: `New commercial application: ${businessName}`,
     html: wrap(
-      `<p>A new trade application has been submitted by <strong>${businessName}</strong>
+      `<p>A new commercial application has been submitted by <strong>${businessName}</strong>
        (${email}).</p>
        <p><a href="https://thefurnitureshack.trade/admin/customers?filter=pending">Review pending applications</a></p>`,
     ),
   }),
   registrationApproved: (contactName: string) => ({
-    subject: "Your trade account is approved",
+    subject: "Your commercial account is approved",
     html: wrap(
       `<p>Hi ${contactName},</p>
-       <p>Your trade account has been approved. Log in to see your trade pricing, live
+       <p>Your commercial account has been approved. Log in to see your commercial pricing, live
        availability, and to order online any time.</p>
-       <p><a href="https://thefurnitureshack.trade/trade/login">Sign in to the trade portal</a></p>`,
+       <p><a href="https://thefurnitureshack.trade/trade/login">Sign in to the commercial portal</a></p>`,
     ),
   }),
   orderSubmitted: (orderNumber: string, totalIncGst: string, payment: PaymentInfo) => ({
@@ -150,7 +150,7 @@ export const emailTemplates = {
     html: wrap(
       `<p>Thanks — we've received your order <strong>${orderNumber}</strong>
        (total ${totalIncGst} inc GST).</p>
-       <p>The trade team will confirm it shortly and send an invoice.</p>
+       <p>The commercial team will confirm it shortly and send an invoice.</p>
        ${paymentHtml(payment, orderNumber)}
        <p><a href="https://thefurnitureshack.trade/account/orders">View your orders</a></p>`,
     ),

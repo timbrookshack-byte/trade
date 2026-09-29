@@ -19,7 +19,7 @@ import { RichText } from "~/components/rich-text";
 import { cn, exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 
 export function meta({ data }: { data?: { product?: { name: string } } }) {
-  return [{ title: `${data?.product?.name ?? "Product"} — The Furniture Shack Trade` }];
+  return [{ title: `${data?.product?.name ?? "Product"} — The Furniture Shack Commercial` }];
 }
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
@@ -165,7 +165,7 @@ export default function StoreProduct() {
                   </p>
                 </>
               ) : (
-                <p className="text-muted-foreground">Price on application — contact the trade team.</p>
+                <p className="text-muted-foreground">Price on application — contact the commercial team.</p>
               )}
               <div className="mt-4 flex items-center gap-3">
                 <span
@@ -227,7 +227,7 @@ export default function StoreProduct() {
             </div>
           ) : (
             <div className="rounded-lg border border-border bg-card p-5">
-              <p className="text-lg font-semibold">See your trade price</p>
+              <p className="text-lg font-semibold">See your commercial price</p>
               {loggedIn ? (
                 <p className="mt-1 text-sm text-muted-foreground">
                   Your application is under review — pricing unlocks once approved.
@@ -236,7 +236,7 @@ export default function StoreProduct() {
                 <>
                   <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
                     {[
-                      "Trade discounts off RRP across the range",
+                      "Commercial discounts off RRP across the range",
                       "Live Brisbane warehouse stock + incoming ETAs",
                       "Order online, invoiced — no credit card needed",
                     ].map((line) => (
@@ -251,13 +251,13 @@ export default function StoreProduct() {
                       to="/trade/apply"
                       className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground hover:bg-brand/90"
                     >
-                      Apply for a trade account
+                      Apply for a commercial account
                     </Link>
                     <Link
                       to="/trade/login"
                       className="rounded-md border border-input bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent"
                     >
-                      Trade login
+                      Commercial login
                     </Link>
                   </div>
                 </>
@@ -270,7 +270,7 @@ export default function StoreProduct() {
               {[
                 ["Brisbane warehouse", "Wakerley — collect or deliver"],
                 ["Invoiced ordering", "Pay by EFT or card, no fees on Visa/MC"],
-                ["Trade support", "Real people, quick answers"],
+                ["Commercial support", "Real people, quick answers"],
               ].map(([title, sub]) => (
                 <div key={title} className="rounded-md border border-border bg-card px-3 py-2.5">
                   <p className="font-semibold text-foreground">{title}</p>

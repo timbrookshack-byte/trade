@@ -1,9 +1,9 @@
-// Minimum spend on a new trade customer's FIRST order. The threshold lives in
+// Minimum spend on a new commercial customer's FIRST order. The threshold lives in
 // settings (`minimum_order_amount`) so the team can change it without a deploy;
 // this module holds the client-safe default and the customer-facing copy.
 import { formatCurrency } from "./utils";
 
-/** Default minimum first-order spend, ex GST (trade prices are quoted ex). */
+/** Default minimum first-order spend, ex GST (commercial prices are quoted ex). */
 export const MINIMUM_SPEND_DEFAULT = 5000;
 
 /**
@@ -13,5 +13,5 @@ export const MINIMUM_SPEND_DEFAULT = 5000;
 export function minimumSpendNotice(minimumExGst: number) {
   return `Your purchase does not meet the minimum threshold of ${formatCurrency(
     minimumExGst,
-  )} for trade orders — we'll be in touch to discuss and work out how we can help with your project.`;
+  )} for commercial orders — we'll be in touch to discuss and work out how we can help with your project.`;
 }

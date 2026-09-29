@@ -6,7 +6,7 @@ import { getDiningCategoryTile } from "~/lib/dining.server";
 
 export function meta() {
   return [
-    { title: "Categories — The Furniture Shack Trade" },
+    { title: "Categories — The Furniture Shack Commercial" },
     { name: "description", content: "Browse the full range by category." },
   ];
 }

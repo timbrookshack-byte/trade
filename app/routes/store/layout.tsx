@@ -36,7 +36,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
         }
       : null,
     company: {
-      name: settings.company_name || "The Furniture Shack — Trade",
+      name: settings.company_name || "The Furniture Shack — Commercial",
       phone: settings.company_phone || "",
       email: settings.company_email || "",
       address: settings.company_address || "",
@@ -66,7 +66,7 @@ export default function StoreLayout() {
                   The Furniture Shack
                 </span>
                 <span className="block text-xs font-medium uppercase tracking-[0.35em] text-muted-foreground">
-                  Trade
+                  Commercial
                 </span>
               </>
             )}
@@ -121,13 +121,13 @@ export default function StoreLayout() {
             ) : (
               <>
                 <Link to="/trade/login" className="underline-offset-4 hover:underline">
-                  Trade login
+                  Commercial login
                 </Link>
                 <Link
                   to="/trade/apply"
                   className="rounded-md bg-brand px-3.5 py-2 font-medium text-brand-foreground hover:bg-brand/90"
                 >
-                  Apply for trade
+                  Apply for a commercial account
                 </Link>
               </>
             )}
@@ -197,12 +197,12 @@ export default function StoreLayout() {
           <div className="space-y-1">
             <p>
               <Link to="/trade/apply" className="underline-offset-4 hover:underline">
-                Apply for a trade account
+                Apply for a commercial account
               </Link>
             </p>
             <p>
               <Link to="/admin" className="underline-offset-4 hover:underline">
-                Trade team sign in
+                Commercial team sign in
               </Link>
             </p>
           </div>

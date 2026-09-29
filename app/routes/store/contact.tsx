@@ -19,8 +19,8 @@ import { Alert } from "~/components/ui/alert";
 
 export function meta() {
   return [
-    { title: "Contact us — The Furniture Shack Trade" },
-    { name: "description", content: "Get in touch with The Furniture Shack trade team." },
+    { title: "Contact us — The Furniture Shack Commercial" },
+    { name: "description", content: "Get in touch with The Furniture Shack commercial team." },
   ];
 }
 
@@ -35,7 +35,7 @@ export async function loader({ context }: LoaderFunctionArgs) {
   ]);
   return {
     company: {
-      name: settings.company_name || "The Furniture Shack — Trade",
+      name: settings.company_name || "The Furniture Shack — Commercial",
       phone: settings.company_phone || "",
       email: settings.company_email || "",
       address: settings.company_address || "",
@@ -66,7 +66,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   if (notify) {
     queueEmail(context, {
       to: [notify],
-      subject: `Trade portal enquiry from ${name}`,
+      subject: `Commercial portal enquiry from ${name}`,
       html: `<p><strong>${name}</strong> (${email}${phone ? `, ${phone}` : ""}) sent:</p>
         <p style="white-space:pre-line">${message.slice(0, 5000)}</p>
         <p><a href="https://thefurnitureshack.trade/admin/messages">View in admin</a></p>`,
@@ -86,7 +86,7 @@ export default function Contact() {
     <div className="mx-auto flex max-w-5xl flex-col gap-10 py-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand">Contact</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight">Talk to the trade team</h1>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight">Talk to the commercial team</h1>
         <p className="mt-2 max-w-xl text-lg text-muted-foreground">
           Questions about a product, a project, or your account — send a message and we'll
           get back to you, usually the same business day.
@@ -105,7 +105,7 @@ export default function Contact() {
               </span>
               <span>
                 <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Call the trade team
+                  Call the commercial team
                 </span>
                 <span className="mt-0.5 block text-lg font-semibold group-hover:underline group-hover:underline-offset-4">
                   {company.phone}
@@ -196,7 +196,7 @@ export default function Contact() {
           {searchParams.get("sent") ? (
             <div className="flex flex-col items-start gap-3">
               <Alert variant="success">
-                Thanks — your message is with the trade team. We'll be in touch shortly.
+                Thanks — your message is with the commercial team. We'll be in touch shortly.
               </Alert>
             </div>
           ) : (

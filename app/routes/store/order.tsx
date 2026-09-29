@@ -23,7 +23,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Order — The Furniture Shack Trade" }];
+  return [{ title: "Order — The Furniture Shack Commercial" }];
 }
 
 async function requireOwnOrder(context: any, request: Request, idParam: string | undefined) {
@@ -88,7 +88,7 @@ export default function CustomerOrder() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       {searchParams.get("placed") && (
         <Alert variant="success">
-          Order placed — the trade team has been notified and will confirm it shortly. A GST
+          Order placed — the commercial team has been notified and will confirm it shortly. A GST
           invoice will follow; payment options are below.
         </Alert>
       )}

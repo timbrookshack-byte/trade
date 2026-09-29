@@ -14,7 +14,7 @@ import {
 } from "~/components/ui/table";
 
 export function meta() {
-  return [{ title: "Your orders — The Furniture Shack Trade" }];
+  return [{ title: "Your orders — The Furniture Shack Commercial" }];
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {

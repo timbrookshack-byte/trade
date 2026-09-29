@@ -5,10 +5,10 @@ import { productPhoto, type Product } from "~/lib/products";
 import { cn, exGst, formatCurrency, formatDate } from "~/lib/utils";
 
 export function meta() {
-  return [{ title: "Product sheet — Trade Portal" }];
+  return [{ title: "Product sheet — Commercial Portal" }];
 }
 
-type PriceMode = "trade" | "rrp" | "none";
+type PriceMode = "commercial" | "rrp" | "none";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
@@ -34,12 +34,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   ]);
   const priceModeRaw = url.searchParams.get("prices");
   const priceMode: PriceMode =
-    priceModeRaw === "rrp" || priceModeRaw === "none" ? priceModeRaw : "trade";
+    priceModeRaw === "rrp" || priceModeRaw === "none" ? priceModeRaw : "commercial";
   // Strip whatever the chosen mode doesn't show — loader data is serialised
   // into the HTML, and sheets may be forwarded outside the business.
   const scrubbed = products.map((p: Product) => ({
     ...p,
-    trade_price: priceMode === "trade" ? p.trade_price : null,
+    trade_price: priceMode === "commercial" ? p.trade_price : null,
     rrp_reference: priceMode === "none" ? null : p.rrp_reference,
   }));
   return {
@@ -47,7 +47,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     priceMode,
     idsParam: ids.join(","),
     company: {
-      name: settings.company_name || "The Furniture Shack — Trade",
+      name: settings.company_name || "The Furniture Shack — Commercial",
       phone: settings.company_phone || "",
       email: settings.company_email || "",
       abn: settings.company_abn || "",
@@ -57,7 +57,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 const PRICE_MODES: { key: PriceMode; label: string }[] = [
-  { key: "trade", label: "Trade prices" },
+  { key: "commercial", label: "Commercial prices" },
   { key: "rrp", label: "RRP only" },
   { key: "none", label: "No prices" },
 ];
@@ -109,7 +109,7 @@ export default function ProductSheet() {
         <div>
           <p className="text-xl font-bold uppercase tracking-widest">The Furniture Shack</p>
           <p className="text-xs font-medium uppercase tracking-[0.35em] text-neutral-500">
-            Trade
+            Commercial
           </p>
         </div>
         <div className="text-right text-xs text-neutral-500">
@@ -123,7 +123,7 @@ export default function ProductSheet() {
       {/* Products */}
       <div className="flex flex-col gap-6">
         {products.map((p: Product) => {
-          const trade = p.trade_price != null ? Number(p.trade_price) : null;
+          const commercial = p.trade_price != null ? Number(p.trade_price) : null;
           const rrp = p.rrp_reference != null ? Number(p.rrp_reference) : null;
           return (
             <article
@@ -152,11 +152,11 @@ export default function ProductSheet() {
                   <p className="line-clamp-3 text-sm text-neutral-600">{p.description}</p>
                 )}
                 <div className="mt-auto pt-2">
-                  {priceMode === "trade" && trade != null && (
+                  {priceMode === "commercial" && commercial != null && (
                     <p className="text-xl font-bold">
-                      {formatCurrency(exGst(trade))}{" "}
+                      {formatCurrency(exGst(commercial))}{" "}
                       <span className="text-sm font-normal text-neutral-500">
-                        ex GST ({formatCurrency(trade)} inc GST)
+                        ex GST ({formatCurrency(commercial)} inc GST)
                       </span>
                       {rrp != null && (
                         <span className="ml-3 text-sm font-normal text-neutral-500">
@@ -165,7 +165,7 @@ export default function ProductSheet() {
                       )}
                     </p>
                   )}
-                  {priceMode === "trade" && trade == null && (
+                  {priceMode === "commercial" && commercial == null && (
                     <p className="text-sm text-neutral-500">Price on application</p>
                   )}
                   {priceMode === "rrp" &&

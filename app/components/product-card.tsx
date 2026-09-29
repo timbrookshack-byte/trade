@@ -71,7 +71,7 @@ export function ProductCard({
               )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">Trade price on login</p>
+            <p className="text-xs text-muted-foreground">Commercial price on login</p>
           )}
           {showPrices && (
             <span

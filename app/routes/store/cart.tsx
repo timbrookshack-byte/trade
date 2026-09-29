@@ -26,7 +26,7 @@ import { Alert } from "~/components/ui/alert";
 import { Card, CardContent } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Cart — The Furniture Shack Trade" }];
+  return [{ title: "Cart — The Furniture Shack Commercial" }];
 }
 
 async function loadCartLines(context: Parameters<typeof readCart>[0], request: Request) {
@@ -276,7 +276,7 @@ export default function CartPage() {
                       ))}
                     </select>
                     <p className="text-xs text-muted-foreground">
-                      Delivery cost TBA — the trade team confirms freight with your invoice.
+                      Delivery cost TBA — the commercial team confirms freight with your invoice.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -315,7 +315,7 @@ export default function CartPage() {
                     </p>
                   )}
                   <p className="text-sm text-muted-foreground">
-                    Submitting sends the order to the trade team. You'll receive a GST invoice
+                    Submitting sends the order to the commercial team. You'll receive a GST invoice
                     with payment options (credit card by phone, or direct deposit) — payment in
                     full is required prior to dispatch.
                   </p>

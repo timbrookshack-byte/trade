@@ -4,7 +4,7 @@ import { getSetting } from "~/lib/settings.server";
 
 export function meta() {
   return [
-    { title: "Dining Sets — The Furniture Shack Trade" },
+    { title: "Dining Sets — The Furniture Shack Commercial" },
     {
       name: "description",
       content: "Build your dining set: choose the table, chair style and quantity.",

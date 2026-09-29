@@ -23,7 +23,7 @@ import {
 } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Apply for a trade account — The Furniture Shack" }];
+  return [{ title: "Apply for a commercial account — The Furniture Shack" }];
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -94,18 +94,18 @@ export default function Apply() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Apply for a trade account</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Apply for a commercial account</h1>
         <p className="mt-2 text-muted-foreground">
           Open to Australian businesses in furniture retail, interior design, and commercial
-          or hospitality fit-out. Once approved you'll see trade pricing and live
+          or hospitality fit-out. Once approved you'll see commercial pricing and live
           availability across the whole range, and can order online any time.
         </p>
       </div>
 
       {actionData && "existingEmail" in actionData && actionData.existingEmail && (
         <Alert>
-          Good news — you already have a trade account with that email (accounts from our
-          old trade portal came across automatically).{" "}
+          Good news — you already have a commercial account with that email (accounts from our
+          old commercial portal came across automatically).{" "}
           <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
             Set your password here
           </Link>{" "}

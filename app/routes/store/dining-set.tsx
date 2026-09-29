@@ -20,7 +20,7 @@ import { RichText } from "~/components/rich-text";
 import { cn, exGst, formatCurrency, formatDateTime } from "~/lib/utils";
 
 export function meta({ data }: { data?: { set?: { title: string } } }) {
-  return [{ title: `${data?.set?.title ?? "Dining set"} — The Furniture Shack Trade` }];
+  return [{ title: `${data?.set?.title ?? "Dining set"} — The Furniture Shack Commercial` }];
 }
 
 interface VariantRef {
@@ -319,7 +319,7 @@ export default function DiningSetPage() {
                 </>
               ) : (
                 <p className="text-muted-foreground">
-                  This combination isn't priced yet — contact the trade team.
+                  This combination isn't priced yet — contact the commercial team.
                 </p>
               )}
               <div className="mt-4 space-y-1.5">
@@ -360,11 +360,11 @@ export default function DiningSetPage() {
             </div>
           ) : (
             <div className="rounded-lg border border-border bg-card p-5">
-              <p className="text-lg font-semibold">See your trade price</p>
+              <p className="text-lg font-semibold">See your commercial price</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {loggedIn
                   ? "Your application is under review — pricing unlocks once approved."
-                  : "Trade customers see live pricing and Brisbane stock for every combination."}
+                  : "Commercial customers see live pricing and Brisbane stock for every combination."}
               </p>
               {!loggedIn && (
                 <div className="mt-4 flex gap-3">
@@ -372,13 +372,13 @@ export default function DiningSetPage() {
                     to="/trade/apply"
                     className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground hover:bg-brand/90"
                   >
-                    Apply for a trade account
+                    Apply for a commercial account
                   </Link>
                   <Link
                     to="/trade/login"
                     className="rounded-md border border-input bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent"
                   >
-                    Trade login
+                    Commercial login
                   </Link>
                 </div>
               )}

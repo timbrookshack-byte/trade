@@ -26,7 +26,7 @@ import {
 } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Trade login — The Furniture Shack" }];
+  return [{ title: "Commercial login — The Furniture Shack" }];
 }
 
 /**
@@ -73,14 +73,14 @@ export default function TradeLogin() {
     <div className="mx-auto flex max-w-md flex-col gap-6 py-10">
       <Card>
         <CardHeader>
-          <CardTitle>Trade login</CardTitle>
-          <CardDescription>Sign in to see your trade pricing and availability.</CardDescription>
+          <CardTitle>Commercial login</CardTitle>
+          <CardDescription>Sign in to see your commercial pricing and availability.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form method="post" className="flex flex-col gap-4">
             {actionData && "noPassword" in actionData && actionData.noPassword && (
               <Alert>
-                Your trade account has come across from our old ordering system, so it
+                Your commercial account has come across from our old ordering system, so it
                 doesn't have a password yet — old passwords don't carry over.{" "}
                 <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
                   Set your password here
@@ -117,7 +117,7 @@ export default function TradeLogin() {
           <p className="mt-2 text-sm text-muted-foreground">
             No account yet?{" "}
             <Link to="/trade/apply" className="font-medium underline underline-offset-4">
-              Apply for trade access
+              Apply for commercial access
             </Link>
           </p>
         </CardContent>

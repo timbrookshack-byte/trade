@@ -6,11 +6,11 @@ import { getSettings } from "~/lib/settings.server";
 
 export function meta() {
   return [
-    { title: "The Furniture Shack — Trade Portal" },
+    { title: "The Furniture Shack — Commercial Portal" },
     {
       name: "description",
       content:
-        "Wholesale furniture for retailers, designers and commercial projects. Trade pricing, live availability and 24/7 online ordering.",
+        "Wholesale furniture for retailers, designers and commercial projects. Commercial pricing, live availability and 24/7 online ordering.",
     },
   ];
 }
@@ -58,7 +58,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 const BENEFITS = [
   {
     title: "Order any time",
-    body: "Browse the full range with your trade pricing and place orders 24/7 — no phone calls or emailed spreadsheets.",
+    body: "Browse the full range with your commercial pricing and place orders 24/7 — no phone calls or emailed spreadsheets.",
   },
   {
     title: "Live availability",
@@ -66,13 +66,13 @@ const BENEFITS = [
   },
   {
     title: "Backed by a real team",
-    body: "Proper GST invoices on every order, and the trade team just a phone call away when a project needs a hand.",
+    body: "Proper GST invoices on every order, and the commercial team just a phone call away when a project needs a hand.",
   },
 ];
 
 export default function Home() {
   const { categories, hero, loggedIn } = useLoaderData<typeof loader>();
-  const heading = hero.heading || "The Furniture Shack range, at trade prices.";
+  const heading = hero.heading || "The Furniture Shack range, at commercial prices.";
   const subheading =
     hero.subheading ||
     "For retailers, interior designers and commercial projects — the full catalogue, regularly synced availability, and online ordering around the clock.";
@@ -92,7 +92,7 @@ export default function Home() {
           />
           <div className="relative z-10 flex max-w-2xl flex-col items-start gap-5 px-6 py-16 text-white sm:px-12 sm:py-24">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/80">
-              Wholesale furniture, direct to trade
+              Wholesale furniture, direct to commercial buyers
             </p>
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{heading}</h1>
             <p className="text-lg text-white/85">{subheading}</p>
@@ -120,7 +120,7 @@ export default function Home() {
                   to="/trade/apply"
                   className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
                 >
-                  Apply for a trade account
+                  Apply for a commercial account
                 </Link>
               )}
             </div>
@@ -129,7 +129,7 @@ export default function Home() {
       ) : (
         <section className="flex flex-col items-start gap-5 pt-6 sm:pt-10">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-            Wholesale furniture, direct to trade
+            Wholesale furniture, direct to commercial buyers
           </p>
           <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
             {heading}
@@ -147,7 +147,7 @@ export default function Home() {
                 to="/trade/apply"
                 className="rounded-md bg-brand px-5 py-3 font-medium text-brand-foreground hover:bg-brand/90"
               >
-                Apply for a trade account
+                Apply for a commercial account
               </Link>
             )}
           </div>
@@ -211,7 +211,7 @@ export default function Home() {
 
       {!loggedIn && (
         <section className="rounded-lg border border-border bg-card p-8">
-          <h2 className="text-2xl font-semibold tracking-tight">A portal built for trade</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">A portal built for commercial buyers</h2>
           <div className="mt-6 grid gap-8 sm:grid-cols-3">
             {BENEFITS.map((b) => (
               <div key={b.title}>
@@ -221,7 +221,7 @@ export default function Home() {
             ))}
           </div>
           <p className="mt-8 text-sm text-muted-foreground">
-            Trade accounts are open to businesses with an ABN in furniture retail, interior
+            Commercial accounts are open to businesses with an ABN in furniture retail, interior
             design, and commercial or hospitality fit-out.{" "}
             <Link
               to="/trade/apply"

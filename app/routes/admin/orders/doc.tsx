@@ -8,7 +8,7 @@ import { PaymentOptions } from "~/components/payment-options";
 import { exGst, formatCurrency, formatDate } from "~/lib/utils";
 
 export function meta({ data }: { data?: { docTitle?: string } }) {
-  return [{ title: `${data?.docTitle ?? "Document"} — Trade Portal` }];
+  return [{ title: `${data?.docTitle ?? "Document"} — Commercial Portal` }];
 }
 
 type DocType = "invoice" | "packing" | "quote";
@@ -54,7 +54,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     docTitle,
     payment,
     company: {
-      name: settings.company_name || "The Furniture Shack — Trade",
+      name: settings.company_name || "The Furniture Shack — Commercial",
       abn: settings.company_abn || "",
       phone: settings.company_phone || "",
       email: settings.company_email || "",
@@ -89,7 +89,7 @@ export default function OrderDoc() {
       <header className="mb-8 flex items-start justify-between border-b-2 border-black pb-4">
         <div>
           <p className="text-xl font-bold uppercase tracking-widest">The Furniture Shack</p>
-          <p className="text-xs font-medium uppercase tracking-[0.35em] text-neutral-500">Trade</p>
+          <p className="text-xs font-medium uppercase tracking-[0.35em] text-neutral-500">Commercial</p>
           <div className="mt-3 text-xs text-neutral-600">
             <p>{company.name}</p>
             {company.abn && <p>ABN {company.abn}</p>}

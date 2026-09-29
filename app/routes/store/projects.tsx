@@ -4,8 +4,8 @@ import type { Project } from "~/lib/content";
 
 export function meta() {
   return [
-    { title: "Projects — The Furniture Shack Trade" },
-    { name: "description", content: "Fit-outs and projects furnished by The Furniture Shack trade team." },
+    { title: "Projects — The Furniture Shack Commercial" },
+    { name: "description", content: "Fit-outs and projects furnished by The Furniture Shack commercial team." },
   ];
 }
 

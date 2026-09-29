@@ -22,7 +22,7 @@ import {
 } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Reset your password — The Furniture Shack Trade" }];
+  return [{ title: "Reset your password — The Furniture Shack Commercial" }];
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -38,7 +38,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   if (!email.includes("@")) return { error: "Enter the email you log in with." };
 
   // Same response whether or not the email exists — never confirm which
-  // addresses hold trade accounts.
+  // addresses hold commercial accounts.
   const [customer] = await context.db<{ id: number; contact_name: string; email: string }[]>`
     SELECT id, contact_name, email FROM customers
     WHERE lower(email) = lower(${email}) AND active = TRUE
@@ -48,10 +48,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const resetUrl = `${new URL(request.url).origin}${path}`;
     queueEmail(context, {
       to: [customer.email],
-      subject: "Reset your trade portal password",
+      subject: "Reset your commercial portal password",
       html: brandedEmail(
         `<p>Hi ${customer.contact_name},</p>
-         <p>Someone asked to reset the password for your Furniture Shack trade login.
+         <p>Someone asked to reset the password for your Furniture Shack commercial login.
          Set a new one here (link valid for 24 hours):</p>
          <p><a href="${resetUrl}">${resetUrl}</a></p>
          <p>If this wasn't you, you can ignore this email — your password hasn't
@@ -81,13 +81,13 @@ export default function ForgotPassword() {
           {actionData && "ok" in actionData && actionData.ok ? (
             <div className="flex flex-col gap-4">
               <Alert variant="success">
-                If that email has a trade account, a reset link is on its way — check your
+                If that email has a commercial account, a reset link is on its way — check your
                 inbox (and spam folder). The link is valid for 24 hours.
               </Alert>
               <p className="text-sm text-muted-foreground">
                 Nothing arrived after a few minutes?{" "}
                 <Link to="/contact" className="font-medium underline underline-offset-4">
-                  Contact the trade team
+                  Contact the commercial team
                 </Link>{" "}
                 and we'll sort it out.
               </p>

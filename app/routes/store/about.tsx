@@ -4,8 +4,8 @@ import { toParagraphs } from "~/lib/content";
 
 export function meta() {
   return [
-    { title: "About us — The Furniture Shack Trade" },
-    { name: "description", content: "Who we are and how we work with the trade." },
+    { title: "About us — The Furniture Shack Commercial" },
+    { name: "description", content: "Who we are and how we work with commercial customers." },
   ];
 }
 
@@ -16,10 +16,10 @@ export async function loader({ context }: LoaderFunctionArgs) {
     "about_image_url",
   ]);
   return {
-    heading: settings.about_heading || "Furniture people, trade terms.",
+    heading: settings.about_heading || "Furniture people, commercial terms.",
     paragraphs: toParagraphs(
       settings.about_body ||
-        "The Furniture Shack has been supplying quality furniture across Queensland for years — and our trade department exists to make working with us effortless for retailers, designers and commercial projects.\n\nEdit this copy in Admin → Content.",
+        "The Furniture Shack has been supplying quality furniture across Queensland for years — and our commercial department exists to make working with us effortless for retailers, designers and commercial projects.\n\nEdit this copy in Admin → Content.",
     ),
     imageUrl: settings.about_image_url || "",
   };
@@ -58,16 +58,16 @@ export default function About() {
       <section className="rounded-xl bg-primary px-8 py-10 text-primary-foreground">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Work with us on trade terms</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">Work with us on commercial terms</h2>
             <p className="mt-1 text-primary-foreground/70">
-              Trade pricing, live availability and 24/7 online ordering.
+              Commercial pricing, live availability and 24/7 online ordering.
             </p>
           </div>
           <Link
             to="/trade/apply"
             className="rounded-md bg-brand px-6 py-3 font-medium text-brand-foreground hover:bg-brand/90"
           >
-            Apply for a trade account
+            Apply for a commercial account
           </Link>
         </div>
       </section>

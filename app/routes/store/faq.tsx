@@ -6,8 +6,8 @@ import { PaymentOptions } from "~/components/payment-options";
 
 export function meta() {
   return [
-    { title: "FAQ — The Furniture Shack Trade" },
-    { name: "description", content: "Common questions about trade accounts, ordering and delivery." },
+    { title: "FAQ — The Furniture Shack Commercial" },
+    { name: "description", content: "Common questions about commercial accounts, ordering and delivery." },
   ];
 }
 
@@ -66,7 +66,7 @@ export default function FaqPage() {
         <Link to="/contact" className="font-medium text-brand underline underline-offset-4">
           Get in touch
         </Link>{" "}
-        — the trade team is happy to help.
+        — the commercial team is happy to help.
       </p>
     </div>
   );

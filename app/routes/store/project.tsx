@@ -7,7 +7,7 @@ import { getSetting } from "~/lib/settings.server";
 import { ProductCard } from "~/components/product-card";
 
 export function meta({ data }: { data?: { project?: { title: string } } }) {
-  return [{ title: `${data?.project?.title ?? "Project"} — The Furniture Shack Trade` }];
+  return [{ title: `${data?.project?.title ?? "Project"} — The Furniture Shack Commercial` }];
 }
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
@@ -23,7 +23,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     project,
     showPrices,
     imageFit: imageFit === "cover" ? "cover" : "contain",
-    // Project pages are public — trade prices must never reach the HTML
+    // Project pages are public — commercial prices must never reach the HTML
     // for unapproved visitors (golden rule).
     featured: showPrices ? featured : featured.map(scrubProductForPublic),
   };
@@ -110,7 +110,7 @@ export default function ProjectPage() {
             to="/contact"
             className="rounded-md bg-brand px-5 py-2.5 font-medium text-brand-foreground hover:bg-brand/90"
           >
-            Talk to the trade team
+            Talk to the commercial team
           </Link>
         </div>
       </div>

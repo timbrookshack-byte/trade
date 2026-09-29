@@ -10,7 +10,7 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 
 export function meta() {
-  return [{ title: "Products — The Furniture Shack Trade" }];
+  return [{ title: "Products — The Furniture Shack Commercial" }];
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -60,7 +60,7 @@ export default function StoreProducts() {
               <Link to="/trade/apply" className="underline underline-offset-4">
                 apply
               </Link>{" "}
-              to see trade pricing
+              to see commercial pricing
             </>
           )}
         </p>

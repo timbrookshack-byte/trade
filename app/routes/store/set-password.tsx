@@ -27,7 +27,7 @@ import {
 } from "~/components/ui/card";
 
 export function meta() {
-  return [{ title: "Set your password — The Furniture Shack Trade" }];
+  return [{ title: "Set your password — The Furniture Shack Commercial" }];
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -51,7 +51,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const password = String(form.get("password") ?? "");
   const reset = await consumeInviteToken(context, token);
   if (!reset) {
-    return { error: "This link has expired or was already used — ask the trade team for a new one." };
+    return { error: "This link has expired or was already used — ask the commercial team for a new one." };
   }
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters." };
@@ -86,13 +86,13 @@ export default function SetPassword() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {firstTime ? "Welcome to the new trade portal" : "Set your password"}
+            {firstTime ? "Welcome to the new commercial portal" : "Set your password"}
           </CardTitle>
           <CardDescription>
             {firstTime
-              ? "Your trade account has come across from our old ordering system — " +
-                "choose a password and you're in, with your trade pricing and live stock."
-              : "Choose a password for your Furniture Shack trade account — you'll be " +
+              ? "Your commercial account has come across from our old ordering system — " +
+                "choose a password and you're in, with your commercial pricing and live stock."
+              : "Choose a password for your Furniture Shack commercial account — you'll be " +
                 "signed in straight away."}
           </CardDescription>
         </CardHeader>
@@ -103,7 +103,7 @@ export default function SetPassword() {
               <Link to="/trade/forgot" className="font-medium underline underline-offset-4">
                 Request a fresh reset link
               </Link>{" "}
-              or contact the trade team.
+              or contact the commercial team.
             </Alert>
           ) : (
             <Form method="post" className="flex flex-col gap-4">

@@ -16,12 +16,12 @@ const BATCH_PER_RUN = 25;
 /** The launch invite email — also used by the admin "email me a preview". */
 export function launchInviteEmail(contactName: string, inviteUrl: string, origin: string) {
   return {
-    subject: "Your Furniture Shack trade account is ready",
+    subject: "Your Furniture Shack commercial account is ready",
     html: brandedEmail(
       `<p>Hi ${contactName},</p>
-       <p>We've moved trade ordering to our new trade portal — your account has
+       <p>We've moved commercial ordering to our new commercial portal — your account has
        come across with it, so there's nothing to re-apply for. Set a password
-       and you're in, with your trade pricing and live stock:</p>
+       and you're in, with your commercial pricing and live stock:</p>
        <p style="margin:24px 0;">
          <a href="${inviteUrl}"
             style="background:#111; color:#fff; padding:12px 24px; border-radius:6px;
@@ -41,11 +41,11 @@ export function launchInviteEmail(contactName: string, inviteUrl: string, origin
  */
 export function customerInviteEmail(contactName: string, inviteUrl: string, origin: string) {
   return {
-    subject: "Set up your Furniture Shack trade portal login",
+    subject: "Set up your Furniture Shack commercial portal login",
     html: brandedEmail(
       `<p>Hi ${contactName},</p>
-       <p>Your trade account is ready on our trade portal. Set a password and
-       you're in, with your trade pricing and live stock:</p>
+       <p>Your commercial account is ready on our commercial portal. Set a password and
+       you're in, with your commercial pricing and live stock:</p>
        <p style="margin:24px 0;">
          <a href="${inviteUrl}"
             style="background:#111; color:#fff; padding:12px 24px; border-radius:6px;
