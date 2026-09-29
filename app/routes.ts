@@ -24,6 +24,9 @@ export default [
   ]),
   route("trade/logout", "routes/store/logout.tsx"),
 
+  // Partner product feed (read-only JSON, Bearer key auth)
+  route("api/partner/products", "routes/api/partner-products.ts"),
+
   // Print/PDF views — standalone, no admin shell
   route("admin/products/sheet", "routes/admin/products/sheet.tsx"),
   route("admin/orders/:id/doc", "routes/admin/orders/doc.tsx"),

@@ -320,6 +320,16 @@ value stores a jsonb string, not an array). The rules:
   "Re-invite stragglers", live counts; `customers.invited_at` tracks sends.
   The apply form redirects existing emails to the reset flow; the
   set-password page shows welcome copy to first-timers (empty password_hash).
+- **Partner product feed** (`app/lib/partner.server.ts`, GET
+  /api/partner/products): read-only catalogue JSON for partners listing our
+  range on their own sites. Auth: Bearer `tpk_…` keys (or ?token=), stored
+  SHA-256-hashed in `partner_api_keys`, created/revoked from the Settings
+  page (shown ONCE at creation; revoke = instant 401). Exposes only what the
+  public storefront could show (active, non-discontinued, category not
+  hidden): sku/name/display category/description/dimensions/images +
+  rrp_inc_gst + a stock BAND {status, next_eta} — never warehouse numbers;
+  `trade_price_inc_gst` only on keys created with include_trade_prices
+  (discourage — partner sites are public). 5-min Cache-Control.
 - Orders: list by status, order detail, record payments (incl. part-payments),
   status transitions, packing slip / invoice PDF (GST invoice — ABN, GST
   breakdown).

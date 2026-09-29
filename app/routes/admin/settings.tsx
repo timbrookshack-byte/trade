@@ -9,7 +9,10 @@ import {
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import { sendTestEmail } from "~/lib/email.server";
+import { generatePartnerKey, sha256Hex } from "~/lib/partner.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
+import { formatDate } from "~/lib/utils";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -48,8 +51,23 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     resend_api_key,
     ...safe
   } = settings;
+  const partnerKeys = await context.db<
+    {
+      id: number;
+      label: string;
+      include_trade_prices: boolean;
+      active: boolean;
+      created_at: string;
+      last_used_at: string | null;
+    }[]
+  >`
+    SELECT id, label, include_trade_prices, active,
+           created_at::text AS created_at, last_used_at::text AS last_used_at
+    FROM partner_api_keys ORDER BY created_at DESC
+  `;
   return {
     settings: safe,
+    partnerKeys,
     tokenConfigured: Boolean(trade_api_token),
     shopifyConnected: Boolean(shopify_admin_token),
     shopifySecretConfigured: Boolean(shopify_client_secret),
@@ -143,6 +161,36 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { ok: "Shopify settings saved — now click Connect to Shopify." };
   }
 
+  if (intent === "partner-create") {
+    const label = String(form.get("label") ?? "").trim();
+    if (!label) return { error: "Give the key a label (who it's for)." };
+    const key = generatePartnerKey();
+    await context.db`
+      INSERT INTO partner_api_keys (label, key_hash, include_trade_prices)
+      VALUES (${label}, ${await sha256Hex(key)}, ${form.get("include_trade_prices") === "on"})
+    `;
+    return {
+      ok:
+        `Partner key created for "${label}" — copy it NOW, it can't be shown again: ${key}  ` +
+        `They call: GET ${new URL(request.url).origin}/api/partner/products with header ` +
+        `"Authorization: Bearer <key>".`,
+    };
+  }
+  if (intent === "partner-toggle") {
+    const id = Number(form.get("id"));
+    if (!Number.isInteger(id)) return { error: "Invalid key." };
+    const [row] = await context.db<{ active: boolean; label: string }[]>`
+      UPDATE partner_api_keys SET active = NOT active WHERE id = ${id}
+      RETURNING active, label
+    `;
+    if (!row) return { error: "Invalid key." };
+    return {
+      ok: row.active
+        ? `Key "${row.label}" re-enabled.`
+        : `Key "${row.label}" revoked — their requests now get 401 immediately.`,
+    };
+  }
+
   if (intent === "test-email") {
     const me = await requireUser(context, request, { role: "admin" });
     const result = await sendTestEmail(context, me.email);
@@ -166,7 +214,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function SettingsPage() {
-  const { settings, tokenConfigured, shopifyConnected, shopifySecretConfigured, resendConfigured } =
+  const { settings, partnerKeys, tokenConfigured, shopifyConnected, shopifySecretConfigured, resendConfigured } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -726,6 +774,60 @@ export default function SettingsPage() {
               Sends to your admin login address and shows Resend's actual response up top —
               including the exact error if the key is wrong or the from-domain isn't verified.
             </p>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Partner product feed</CardTitle>
+          <CardDescription>
+            Read-only catalogue API for partners who list our range on their own sites
+            (GET /api/partner/products, Bearer key). It only ever exposes what the public
+            storefront could show — plus RRP and a stock band, never warehouse numbers —
+            and trade prices only when a key explicitly includes them. Keys are shown once
+            on creation and stored hashed; revoking cuts access instantly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {partnerKeys.length > 0 && (
+            <div className="flex flex-col divide-y divide-border rounded-md border border-border">
+              {partnerKeys.map((k: (typeof partnerKeys)[number]) => (
+                <div key={k.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
+                  <span className="font-medium">{k.label}</span>
+                  {k.include_trade_prices && <Badge variant="outline">trade prices</Badge>}
+                  {!k.active && <Badge variant="destructive">revoked</Badge>}
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {k.last_used_at
+                      ? `last used ${formatDate(k.last_used_at)}`
+                      : "never used"}
+                  </span>
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="partner-toggle" />
+                    <input type="hidden" name="id" value={k.id} />
+                    <Button type="submit" variant="ghost" size="sm" disabled={busy}>
+                      {k.active ? "Revoke" : "Re-enable"}
+                    </Button>
+                  </Form>
+                </div>
+              ))}
+            </div>
+          )}
+          <Form method="post" className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="intent" value="partner-create" />
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="partner-label" className="text-xs text-muted-foreground">
+                New key label (who it's for)
+              </Label>
+              <Input id="partner-label" name="label" placeholder="e.g. Coastal Interiors website" className="h-9 w-64" />
+            </div>
+            <label className="flex items-center gap-2 pb-2 text-sm">
+              <input type="checkbox" name="include_trade_prices" className="size-4 accent-primary" />
+              include trade prices (rarely — their site is public)
+            </label>
+            <Button type="submit" variant="outline" disabled={busy}>
+              Create key
+            </Button>
           </Form>
         </CardContent>
       </Card>
