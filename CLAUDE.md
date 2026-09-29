@@ -389,6 +389,13 @@ registration received/approved. Domain-verified sender.
 
 ## Non-negotiables
 
+- **Customer-facing branding is "Commercial", never "Trade"** (rebrand
+  2026-09): every string a customer can see — storefront pages, emails,
+  print docs — says "The Furniture Shack Commercial" / "commercial
+  pricing/account/team". Unchanged on purpose: /trade/* URLs (sent links
+  keep working), the trade@ mailbox, and internal names (settings keys,
+  DB columns, code identifiers, this document's terminology).
+
 - **GST: all prices are stored inc-GST; ex-GST is derived for display**
   (`ex = inc / 1.1`). This is the documented choice — do not store ex-GST.
   Invoices show GST correctly. **Customer-facing display leads with ex-GST**
