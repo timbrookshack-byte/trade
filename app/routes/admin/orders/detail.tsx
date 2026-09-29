@@ -29,6 +29,7 @@ import {
 import { exGst, formatCurrency, formatDate, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
+import { minimumSpendCheck } from "~/lib/minimum-spend.server";
 import { Button } from "~/components/ui/button";
 import { Input, Select, Textarea } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -51,7 +52,17 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const data = await getOrder(context.db, id);
   if (!data) throw new Response("Not found", { status: 404 });
   const orders360 = (await get360OrdersConfig(context.db)).enabled;
-  return { ...data, orders360 };
+  // Flag a new customer's first order that came in under the minimum spend —
+  // the customer was told at confirmation that we'd be in touch.
+  const belowMinimum =
+    data.order.status === "quote"
+      ? null
+      : await minimumSpendCheck(context, {
+          customerId: data.order.customer_id,
+          totalIncGst: Number(data.order.total_inc_gst),
+          orderId: data.order.id,
+        });
+  return { ...data, orders360, belowMinimum };
 }
 
 export async function action({ request, context, params }: ActionFunctionArgs) {
@@ -181,7 +192,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function OrderDetail() {
-  const { order, items, payments, paid, balance, orders360 } = useLoaderData<typeof loader>();
+  const { order, items, payments, paid, balance, orders360, belowMinimum } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -206,6 +218,15 @@ export default function OrderDetail() {
             <Badge>{STATUS_LABELS[order.status]}</Badge>
             {order.sale_number_360 && (
               <Badge variant="outline">360 · {order.sale_number_360}</Badge>
+            )}
+            {belowMinimum != null && (
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/15 text-amber-800"
+                title="First order for this customer, under the minimum spend — they were told we'd be in touch."
+              >
+                First order under {formatCurrency(belowMinimum)} ex GST minimum
+              </Badge>
             )}
             <span className="text-sm text-muted-foreground">
               created {formatDateTime(order.created_at)}

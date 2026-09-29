@@ -8,10 +8,16 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
-import { createInviteToken, type Customer } from "~/lib/customer-auth.server";
-import { businessTypeLabel } from "~/lib/customers";
+import { createInviteToken } from "~/lib/customer-auth.server";
+import { businessTypeLabel, CUSTOMER_FILTERS, customerQueryString } from "~/lib/customers";
+import { listCustomers, parseCustomerQuery, type CustomerRow } from "~/lib/customers.server";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
-import { launchInviteEmail, runLaunchInviteDrip, requeueUnactivated } from "~/lib/invites.server";
+import {
+  customerInviteEmail,
+  launchInviteEmail,
+  runLaunchInviteDrip,
+  requeueUnactivated,
+} from "~/lib/invites.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -32,47 +38,14 @@ export function meta() {
   return [{ title: "Customers — Trade Portal" }];
 }
 
-const FILTERS = [
-  { key: "pending", label: "Pending approval" },
-  { key: "approved", label: "Approved" },
-  { key: "all", label: "All" },
-] as const;
-
-type Filter = (typeof FILTERS)[number]["key"];
-
-// Whitelisted sort keys → SQL expressions (used via db.unsafe, never user text).
-const SORTS: Record<string, string> = {
-  business: "lower(c.business_name)",
-  applied: "c.created_at",
-  last_login: "c.last_login_at",
-  last_order: "last_order_at",
-};
+const FILTERS = CUSTOMER_FILTERS;
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
-  const url = new URL(request.url);
-  const filterParam = url.searchParams.get("filter");
-  const filter: Filter = FILTERS.some((f) => f.key === filterParam)
-    ? (filterParam as Filter)
-    : "pending";
-  const sort = SORTS[url.searchParams.get("sort") ?? ""] ? url.searchParams.get("sort")! : "applied";
-  const dir = url.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const query = parseCustomerQuery(new URL(request.url));
+  const { filter, sort, dir, search } = query;
   const db = context.db;
-  const customers = await db<(Customer & { last_login_at: string | null; last_order_at: string | null })[]>`
-    SELECT c.id, c.business_name, c.abn, c.business_type, c.contact_name, c.email, c.phone,
-           c.address, c.price_tier, c.credit_terms, c.approved, c.approved_at, c.active,
-           c.created_at, c.last_login_at,
-           c.how_heard, c.website, c.social_media, c.current_projects, c.additional_info,
-           (SELECT MAX(o.submitted_at) FROM orders o
-            WHERE o.customer_id = c.id AND o.status <> 'quote') AS last_order_at
-    FROM customers c
-    WHERE CASE ${filter}
-        WHEN 'pending' THEN NOT c.approved AND c.active
-        WHEN 'approved' THEN c.approved AND c.active
-        ELSE TRUE
-      END
-    ORDER BY ${db.unsafe(SORTS[sort])} ${db.unsafe(dir === "asc" ? "ASC" : "DESC")} NULLS LAST
-  `;
+  const customers = await listCustomers(db, query);
   const [inviteStats] = await db<
     { to_invite: number; invited: number; activated: number; sent_today: number }[]
   >`
@@ -96,6 +69,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     filter,
     sort,
     dir,
+    search,
     inviteCampaign: {
       ...inviteStats,
       enabled: campaignSettings.launch_invites_enabled === "true",
@@ -180,6 +154,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
     `;
     return { ok: "Approval revoked — prices are hidden for this customer." };
   }
+  if (intent === "toggle-existing") {
+    // Drives the first-order minimum spend: existing clients never see it.
+    const [customer] = await db<{ existing_client: boolean; business_name: string }[]>`
+      UPDATE customers SET existing_client = NOT existing_client, updated_at = now()
+      WHERE id = ${id}
+      RETURNING existing_client, business_name
+    `;
+    if (!customer) return { error: "Customer not found." };
+    return {
+      ok: customer.existing_client
+        ? `${customer.business_name} marked an existing client — no first-order minimum spend notice.`
+        : `${customer.business_name} marked a new client — the first-order minimum spend notice applies.`,
+    };
+  }
   if (intent === "toggle-active") {
     await db`UPDATE customers SET active = NOT active, updated_at = now() WHERE id = ${id}`;
     return { ok: "Customer updated." };
@@ -193,12 +181,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (customer) {
       queueEmail(context, {
         to: [customer.email],
-        subject: "Set up your Furniture Shack trade portal login",
-        html: `<p>Hi ${customer.contact_name},</p>
-          <p>Your trade account is ready on our new trade portal. Set your password here
-          (link valid 14 days):</p>
-          <p><a href="${inviteUrl}">${inviteUrl}</a></p>`,
+        ...customerInviteEmail(customer.contact_name, inviteUrl, new URL(request.url).origin),
       });
+      await db`UPDATE customers SET invited_at = now() WHERE id = ${id}`;
     }
     return { ok: `Invite link (emailed if email is configured — valid 14 days): ${inviteUrl}` };
   }
@@ -211,18 +196,22 @@ function SortHeader({
   filter,
   sort,
   dir,
+  search,
 }: {
   label: string;
   keyName: string;
   filter: string;
   sort: string;
   dir: string;
+  search: string;
 }) {
   const isActive = sort === keyName;
   const nextDir = isActive && dir === "desc" ? "asc" : "desc";
   return (
     <Link
-      to={`/admin/customers?filter=${filter}&sort=${keyName}&dir=${nextDir}`}
+      to={`/admin/customers?filter=${filter}&sort=${keyName}&dir=${nextDir}${
+        search ? `&q=${encodeURIComponent(search)}` : ""
+      }`}
       className={cn("underline-offset-4 hover:underline", isActive && "text-foreground")}
     >
       {label}
@@ -232,7 +221,7 @@ function SortHeader({
 }
 
 export default function CustomersPage() {
-  const { customers, filter, sort, dir, inviteCampaign } = useLoaderData<typeof loader>();
+  const { customers, filter, sort, dir, search, inviteCampaign } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -247,12 +236,27 @@ export default function CustomersPage() {
             check the ABN and business before approving.
           </p>
         </div>
-        <Link
-          to="/admin/customers/import"
-          className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
-        >
-          Import from CSV
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/admin/customers/export?${customerQueryString({ filter, sort, dir, search })}`}
+            className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
+            title="Downloads exactly the customers listed below"
+          >
+            Export CSV
+          </a>
+          <Link
+            to="/admin/customers/import"
+            className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
+          >
+            Import from CSV
+          </Link>
+          <Link
+            to="/admin/customers/new"
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Add customer
+          </Link>
+        </div>
       </div>
 
       {actionData && "ok" in actionData && (
@@ -324,11 +328,13 @@ export default function CustomersPage() {
         <Alert variant="destructive">{actionData.error}</Alert>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            to={`/admin/customers?filter=${f.key}&sort=${sort}&dir=${dir}`}
+            to={`/admin/customers?filter=${f.key}&sort=${sort}&dir=${dir}${
+              search ? `&q=${encodeURIComponent(search)}` : ""
+            }`}
             className={cn(
               "rounded-full border px-3 py-1 text-sm",
               filter === f.key
@@ -339,6 +345,28 @@ export default function CustomersPage() {
             {f.label}
           </Link>
         ))}
+        <Form method="get" className="ml-auto flex gap-2">
+          <input type="hidden" name="filter" value={filter} />
+          <input type="hidden" name="sort" value={sort} />
+          <input type="hidden" name="dir" value={dir} />
+          <Input
+            name="q"
+            defaultValue={search}
+            placeholder="Search business, contact, email, phone, ABN…"
+            className="w-72"
+          />
+          <Button type="submit" variant="secondary" disabled={busy}>
+            Search
+          </Button>
+          {search && (
+            <Link
+              to={`/admin/customers?filter=${filter}&sort=${sort}&dir=${dir}`}
+              className="inline-flex h-10 items-center rounded-md px-3 text-sm text-muted-foreground underline-offset-4 hover:underline"
+            >
+              Clear
+            </Link>
+          )}
+        </Form>
       </div>
 
       <Card>
@@ -347,17 +375,17 @@ export default function CustomersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>
-                  <SortHeader label="Business" keyName="business" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Business" keyName="business" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>
-                  <SortHeader label="Applied" keyName="applied" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Applied" keyName="applied" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>
-                  <SortHeader label="Last login" keyName="last_login" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Last login" keyName="last_login" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>
-                  <SortHeader label="Last order" keyName="last_order" filter={filter} sort={sort} dir={dir} />
+                  <SortHeader label="Last order" keyName="last_order" filter={filter} sort={sort} dir={dir} search={search} />
                 </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead />
@@ -367,16 +395,25 @@ export default function CustomersPage() {
               {customers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    {filter === "pending"
-                      ? "No applications waiting — all caught up."
-                      : "No customers here yet."}
+                    {search
+                      ? `No customers match “${search}”${filter === "all" ? "" : " in this list — try All"}.`
+                      : filter === "pending"
+                        ? "No applications waiting — all caught up."
+                        : "No customers here yet."}
                   </TableCell>
                 </TableRow>
               )}
-              {customers.map((c: Customer & { last_login_at: string | null; last_order_at: string | null }) => (
+              {customers.map((c: CustomerRow) => (
                 <TableRow key={c.id}>
                   <TableCell>
-                    <p className="font-medium">{c.business_name}</p>
+                    <p className="font-medium">
+                      <Link
+                        to={`/admin/customers/${c.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {c.business_name}
+                      </Link>
+                    </p>
                     <p className="font-mono text-xs text-muted-foreground">
                       {c.abn && <>ABN {c.abn} · </>}
                       {businessTypeLabel(c.business_type)}
@@ -452,10 +489,29 @@ export default function CustomersPage() {
                       ) : (
                         <Badge variant="secondary">pending</Badge>
                       )}
+                      {c.existing_client ? (
+                        <Badge variant="outline" title="No first-order minimum spend notice">
+                          existing client
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/40 bg-amber-500/15 text-amber-800"
+                          title="A first order under the minimum spend gets the soft notice"
+                        >
+                          new client
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Link
+                        to={`/admin/customers/${c.id}`}
+                        className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium hover:bg-accent"
+                      >
+                        Edit
+                      </Link>
                       {c.active && !c.approved && (
                         <Form method="post" className="inline">
                           <input type="hidden" name="intent" value="approve" />
@@ -479,6 +535,13 @@ export default function CustomersPage() {
                         <input type="hidden" name="id" value={c.id} />
                         <Button type="submit" variant="ghost" size="sm" disabled={busy}>
                           Invite link
+                        </Button>
+                      </Form>
+                      <Form method="post" className="inline">
+                        <input type="hidden" name="intent" value="toggle-existing" />
+                        <input type="hidden" name="id" value={c.id} />
+                        <Button type="submit" variant="ghost" size="sm" disabled={busy}>
+                          {c.existing_client ? "Mark new" : "Mark existing"}
                         </Button>
                       </Form>
                       <Form method="post" className="inline">

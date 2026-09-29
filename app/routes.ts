@@ -28,6 +28,7 @@ export default [
   route("api/partner/products", "routes/api/partner-products.ts"),
 
   // Print/PDF views — standalone, no admin shell
+  route("admin/customers/export", "routes/admin/customers-export.tsx"),
   route("admin/products/sheet", "routes/admin/products/sheet.tsx"),
   route("admin/orders/:id/doc", "routes/admin/orders/doc.tsx"),
 
@@ -49,7 +50,9 @@ export default [
     route("admin/categories", "routes/admin/categories.tsx"),
     route("admin/categories/:category", "routes/admin/category-detail.tsx"),
     route("admin/customers", "routes/admin/customers.tsx"),
+    route("admin/customers/new", "routes/admin/customer-new.tsx"),
     route("admin/customers/import", "routes/admin/customers-import.tsx"),
+    route("admin/customers/:id", "routes/admin/customer-edit.tsx"),
     route("admin/dining-sets", "routes/admin/dining-sets.tsx"),
     route("admin/content", "routes/admin/content.tsx"),
     route("admin/projects", "routes/admin/projects.tsx"),

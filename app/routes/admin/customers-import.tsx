@@ -137,8 +137,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
       const lastOrder = lastOrderOf(row);
       if (lastOrder) {
         const updated = await db`
-          UPDATE customers SET last_order_external = ${lastOrder}
-          WHERE lower(email) = ${email} AND last_order_external IS DISTINCT FROM ${lastOrder}
+          UPDATE customers SET last_order_external = ${lastOrder}, existing_client = TRUE
+          WHERE lower(email) = ${email}
+            AND (last_order_external IS DISTINCT FROM ${lastOrder} OR NOT existing_client)
           RETURNING id
         `;
         if (updated.length > 0) {
@@ -158,7 +159,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // with no usable password — they set one via an invite link.
     await db`
       INSERT INTO customers (business_name, abn, business_type, contact_name, email, phone,
-                             address, password_hash, approved, approved_at, last_order_external)
+                             address, password_hash, approved, approved_at, last_order_external,
+                             existing_client)
       VALUES (${business},
               ${col.abn >= 0 ? (row[col.abn] ?? "").replace(/\s/g, "").trim() : ""},
               'other',
@@ -166,7 +168,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
               ${email},
               ${col.phone >= 0 ? (row[col.phone] ?? "").trim() : ""},
               ${address},
-              '', TRUE, now(), ${lastOrderOf(row)})
+              '', TRUE, now(), ${lastOrderOf(row)}, TRUE)
     `;
     created++;
   }

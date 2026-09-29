@@ -11,7 +11,8 @@ import { requireUser } from "~/lib/auth.server";
 import { sendTestEmail } from "~/lib/email.server";
 import { generatePartnerKey, sha256Hex } from "~/lib/partner.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
-import { formatDate } from "~/lib/utils";
+import { MINIMUM_SPEND_DEFAULT } from "~/lib/minimum-spend";
+import { formatCurrency, formatDate } from "~/lib/utils";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input, Textarea } from "~/components/ui/input";
@@ -94,6 +95,18 @@ export async function action({ request, context }: ActionFunctionArgs) {
       product_image_fit: form.get("product_image_fit") === "cover" ? "cover" : "contain",
     });
     return { ok: "Storefront display settings saved." };
+  }
+
+  if (intent === "ordering") {
+    const raw = String(form.get("minimum_order_amount") ?? "").trim().replace(/[$,]/g, "");
+    const amount = Number(raw);
+    await setSettings(context, {
+      minimum_order_amount:
+        raw !== "" && Number.isFinite(amount) && amount >= 0
+          ? String(amount)
+          : String(MINIMUM_SPEND_DEFAULT),
+    });
+    return { ok: "Trade ordering settings saved." };
   }
 
   if (intent === "branding") {
@@ -472,6 +485,44 @@ export default function SettingsPage() {
             <div>
               <Button type="submit" disabled={busy}>
                 Save storefront display
+              </Button>
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Trade ordering</CardTitle>
+          <CardDescription>
+            The minimum spend we ask of a new trade customer on their first order. It never
+            blocks an order — under-threshold carts get a quiet note at confirmation saying
+            we'll be in touch, and the order is flagged for the team here in admin.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="flex flex-col gap-4">
+            <input type="hidden" name="intent" value="ordering" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="minimum_order_amount">
+                Minimum first-order spend (ex GST)
+              </Label>
+              <Input
+                id="minimum_order_amount"
+                name="minimum_order_amount"
+                inputMode="decimal"
+                className="max-w-[12rem]"
+                placeholder={String(MINIMUM_SPEND_DEFAULT)}
+                defaultValue={settings.minimum_order_amount ?? String(MINIMUM_SPEND_DEFAULT)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Dollars ex GST — {formatCurrency(MINIMUM_SPEND_DEFAULT)} by default. Set it to
+                0 to turn the notice off entirely. Repeat customers are never shown it.
+              </p>
+            </div>
+            <div>
+              <Button type="submit" disabled={busy}>
+                Save trade ordering
               </Button>
             </div>
           </Form>

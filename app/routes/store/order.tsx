@@ -13,6 +13,8 @@ import { getOrder } from "~/lib/orders.server";
 import { deliveryMethodLabel, STATUS_LABELS } from "~/lib/orders";
 import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
 import { getPaymentInfo } from "~/lib/payment.server";
+import { minimumSpendCheck } from "~/lib/minimum-spend.server";
+import { minimumSpendNotice } from "~/lib/minimum-spend";
 import { PaymentOptions } from "~/components/payment-options";
 import { exGst, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Alert } from "~/components/ui/alert";
@@ -39,8 +41,19 @@ async function requireOwnOrder(context: any, request: Request, idParam: string |
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const { data } = await requireOwnOrder(context, request, params.id);
   const payment = await getPaymentInfo(context);
+  // Soft first-order minimum-spend note — shown while the order is still with
+  // the team to action, and gone once they've confirmed it.
+  const minimumSpend =
+    data.order.status === "submitted"
+      ? await minimumSpendCheck(context, {
+          customerId: data.order.customer_id,
+          totalIncGst: Number(data.order.total_inc_gst),
+          orderId: data.order.id,
+        })
+      : null;
   return {
     order: data.order,
+    minimumSpend,
     paid: data.paid,
     balance: data.balance,
     payment,
@@ -66,7 +79,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 }
 
 export default function CustomerOrder() {
-  const { order, items, paid, balance, payment } = useLoaderData<typeof loader>();
+  const { order, items, paid, balance, payment, minimumSpend } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const total = Number(order.total_inc_gst);
@@ -78,6 +91,9 @@ export default function CustomerOrder() {
           Order placed — the trade team has been notified and will confirm it shortly. A GST
           invoice will follow; payment options are below.
         </Alert>
+      )}
+      {minimumSpend != null && (
+        <Alert className="text-muted-foreground">{minimumSpendNotice(minimumSpend)}</Alert>
       )}
       <div className="flex items-start justify-between">
         <div>

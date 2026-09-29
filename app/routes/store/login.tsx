@@ -29,8 +29,17 @@ export function meta() {
   return [{ title: "Trade login — The Furniture Shack" }];
 }
 
+/**
+ * Where a signed-in customer lands: the home page, so they arrive at the
+ * brand and the category tiles rather than the full product list. The one
+ * exception is being bounced here from the cart — then we send them back.
+ */
+function landingFor(request: Request) {
+  return new URL(request.url).searchParams.get("from") === "cart" ? "/cart" : "/";
+}
+
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  if (await getCustomer(context, request)) throw redirect("/products");
+  if (await getCustomer(context, request)) throw redirect(landingFor(request));
   return null;
 }
 
@@ -52,7 +61,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
   // Fireworks on 360's CRM feed — guarded inside, never affects sign-in.
   await notify360Login(context.db, customer);
-  return createCustomerSession(context, customer.id, "/products");
+  return createCustomerSession(context, customer.id, landingFor(request));
 }
 
 export default function TradeLogin() {

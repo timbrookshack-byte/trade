@@ -302,6 +302,23 @@ value stores a jsonb string, not an array). The rules:
   "Also show in" checkboxes on the product edit page; storefront tiles,
   category pages, admin category filter and category detail all include them.
 - Customers: approve registrations, set tiers/terms, view order history;
+  search (business/contact/email/phone/ABN, `?q=`, combines with the
+  pending/approved/new-clients/all filter and sort — filters, sorts and the
+  query live in `customers.server.ts`; the filter list and query-string
+  helper are in the client-safe `customers.ts`, since a route component
+  importing VALUES from a *.server module fails the build); existing-client badge + "Mark
+  existing/new" toggle (drives the first-order minimum spend);
+  **add a customer** at /admin/customers/new (team-created accounts: approved
+  on the spot, no password invented — it creates the 14-day set-password
+  invite and optionally emails it, `customerInviteEmail`); **CSV export** at
+  /admin/customers/export (Mailchimp-shaped: Email Address + first/last name
+  split, one-line address; exports exactly the rows the list is showing, so
+  the "New clients" filter + Export gives new sign-ups only);
+  **edit a customer** at /admin/customers/:id (business/contact/email/phone/
+  ABN/type/address/tier/terms + the existing-client flag; email is the login
+  and is uniqueness-checked before saving, with activity facts and the
+  read-only application answers alongside). Approve/deactivate/invite stay on
+  the list so the approval email still fires;
   sortable columns (business/applied/last login/last order); CSV import
   (/admin/customers/import — Orderspace export compatible; imported rows are
   approved with NO password) + per-customer invite links (`password_resets`
@@ -347,6 +364,22 @@ value stores a jsonb string, not an array). The rules:
   "Low" / "Incoming — ETA Aug"), cart → submit order (no online card payment in
   phase 1 — orders land in admin and are invoiced; payment upfront by EFT,
   no credit accounts), order history + statuses, reorder button.
+- **Minimum first-order spend** (`minimum_order_amount`, Settings → Trade
+  ordering; default $5,000 ex GST): a NEW customer whose cart is under it
+  gets a deliberately quiet note above the
+  submit button and on the order confirmation page — "we'll be in touch to
+  discuss and work out how we can help with your project"
+  (`minimumSpendNotice`). It NEVER blocks submitting, is never shown to
+  repeat customers, and disappears once the team confirms the order. The
+  team sees it on the order-submitted notification email and as an amber
+  badge on the admin order page. Logic: `app/lib/minimum-spend.server.ts`.
+  **"New" means a new SIGN-UP, not a first order in the portal**
+  (`isExistingClient`): customers.`existing_client` (TRUE for everyone
+  migrated at launch, set by the CSV import, toggled per customer on
+  /admin/customers), an old-portal `last_order_external` date, or a prior
+  non-cancelled portal order all mark an established client. Keying it off
+  portal orders alone — the first cut — warned long-standing customers who
+  had simply never ordered through this portal.
 - Phase 2+: Stripe for card-paying customers, live stock via the orders API.
 
 ## Emails (use Resend, same as 360)
@@ -444,6 +477,8 @@ registration received/approved. Domain-verified sender.
 the UI), `stock_sync_minutes`, `trade_discount_percent` (default 37.5),
 `shopify_domain`, `shopify_admin_token` (secret — write-only in the UI),
 `resend_api_key` (secret), `email_from`, `email_notify`,
+`minimum_order_amount` (minimum first-order spend EX GST for new trade
+customers, default 5000 — `app/lib/minimum-spend.ts`; 0 turns it off),
 `payment_phone`, `payment_account_name`, `payment_bsb`,
 `payment_account_number`, `payment_remittance_email` (payment options —
 defaults hardcoded in `app/lib/payment.ts`; shown on invoices, customer
