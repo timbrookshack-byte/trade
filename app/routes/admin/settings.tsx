@@ -796,9 +796,14 @@ export default function SettingsPage() {
                 <Input
                   id="email_from"
                   name="email_from"
-                  placeholder="trade@thefurnitureshack.com.au (domain must be verified in Resend)"
+                  placeholder="The Furniture Shack Commercial <trade@thefurnitureshack.com.au>"
                   defaultValue={settings.email_from ?? ""}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use the "Name &lt;address&gt;" format to control the sender name customers
+                  see — a bare address shows just "trade". The address's domain must be
+                  verified in Resend.
+                </p>
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email_notify">Trade team inbox (new orders/applications)</Label>
