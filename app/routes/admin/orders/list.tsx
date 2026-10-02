@@ -3,6 +3,7 @@ import {
   useActionData,
   Link,
   useLoaderData,
+  useNavigation,
   useSearchParams,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
@@ -12,6 +13,7 @@ import { import360Orders } from "~/lib/three60-orders.server";
 import { countOrders, listOrders, ORDERS_PER_PAGE, type OrderListFilter } from "~/lib/orders.server";
 import { STATUS_LABELS, type Order, type OrderStatus } from "~/lib/orders";
 import { cn, formatCurrency, formatDateTime } from "~/lib/utils";
+import { Alert } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -66,14 +68,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
   await requireUser(context, request);
   const form = await request.formData();
   if (form.get("intent") === "import-360") {
-    const result = await import360Orders(context);
+    // A manual click processes a bounded chunk so the request always comes
+    // back quickly — the cron (or another click) continues a long backfill.
+    const result = await import360Orders(context, { maxPages: 2 });
     if (result.skipped) {
       return { error: `360 import didn't run — ${result.skipped}.` };
     }
     return {
       ok: `360 import: ${result.imported} new, ${result.updated} updated${
         result.unmatched > 0 ? `, ${result.unmatched} skipped (no matching customer email)` : ""
-      }.`,
+      }.${result.done ? "" : " More to import — click again, or the 15-minute sync will keep going."}`,
     };
   }
   return null;
@@ -81,6 +85,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
 export default function OrdersList() {
   const { orders, filter, search, page, total, perPage } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const importing =
+    navigation.state === "submitting" &&
+    navigation.formData?.get("intent") === "import-360";
   const lastPage = Math.max(1, Math.ceil(total / perPage));
   const pageQuery = `filter=${filter}${search ? `&q=${encodeURIComponent(search)}` : ""}`;
   const actionData = useActionData<typeof action>();
@@ -96,18 +104,18 @@ export default function OrdersList() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3">
         <Form method="post">
           <input type="hidden" name="intent" value="import-360" />
-          <Button type="submit" variant="outline" size="sm">
-            Import direct 360 sales now
+          <Button type="submit" variant="outline" size="sm" disabled={importing}>
+            {importing ? "Importing from 360…" : "Import direct 360 sales now"}
           </Button>
         </Form>
         {actionData && "ok" in actionData && actionData.ok && (
-          <span className="text-sm text-muted-foreground">{actionData.ok}</span>
+          <Alert variant="success">{actionData.ok}</Alert>
         )}
         {actionData && "error" in actionData && actionData.error && (
-          <span className="text-sm text-destructive">{actionData.error}</span>
+          <Alert variant="destructive">{actionData.error}</Alert>
         )}
       </div>
 

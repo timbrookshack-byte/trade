@@ -373,9 +373,12 @@ interface FeedSale {
   lines?: { sku?: string; name?: string; qty?: number; unit_price_inc_gst?: number }[];
 }
 
-export async function import360Orders(context: AppLoadContext) {
+export async function import360Orders(
+  context: AppLoadContext,
+  opts: { maxPages?: number } = {},
+) {
   const db = context.db;
-  const result = { skipped: "", imported: 0, updated: 0, unmatched: 0 };
+  const result = { skipped: "", imported: 0, updated: 0, unmatched: 0, done: true };
   const rows = await db<{ key: string; value: string }[]>`
     SELECT key, value FROM settings WHERE key IN
       ('trade_api_url', 'trade_api_token', 'orders_360_import_enabled', 'orders_360_import_cursor')
@@ -386,8 +389,13 @@ export async function import360Orders(context: AppLoadContext) {
   const base = s.trade_api_url.replace(/\/products\/?$/, "");
   let cursor = s.orders_360_import_cursor || "2026-07-01T00:00:00Z";
 
+  const maxPages = Math.max(1, opts.maxPages ?? 10);
+  const saveCursor = () => db`
+    INSERT INTO settings (key, value) VALUES ('orders_360_import_cursor', ${cursor})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `;
   try {
-    for (let page = 0; page < 10; page++) {
+    for (let page = 0; page < maxPages; page++) {
       const response = await fetch(
         `${base}/orders-feed?since=${encodeURIComponent(cursor)}&limit=100`,
         {
@@ -471,14 +479,14 @@ export async function import360Orders(context: AppLoadContext) {
           `;
         }
       }
-      if (sales.length < 100) break;
+      // Persist progress after EVERY page: if a long backfill run is cut
+      // short, the next run (click or cron) resumes where this one got to.
+      await saveCursor();
+      if (sales.length < 100) return result;
     }
+    result.done = false; // page budget used up with a full page — more waiting
   } catch (err) {
     return { ...result, skipped: `feed error: ${String(err)}` };
   }
-  await db`
-    INSERT INTO settings (key, value) VALUES ('orders_360_import_cursor', ${cursor})
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-  `;
   return result;
 }
