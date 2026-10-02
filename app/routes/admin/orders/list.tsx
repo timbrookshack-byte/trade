@@ -1,11 +1,14 @@
 import {
   Form,
+  useActionData,
   Link,
   useLoaderData,
   useSearchParams,
+  type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
+import { import360Orders } from "~/lib/three60-orders.server";
 import { listOrders, type OrderListFilter } from "~/lib/orders.server";
 import { STATUS_LABELS, type Order, type OrderStatus } from "~/lib/orders";
 import { cn, formatCurrency, formatDateTime } from "~/lib/utils";
@@ -55,8 +58,26 @@ function statusVariant(status: OrderStatus) {
   return "secondary" as const;
 }
 
+export async function action({ request, context }: ActionFunctionArgs) {
+  await requireUser(context, request);
+  const form = await request.formData();
+  if (form.get("intent") === "import-360") {
+    const result = await import360Orders(context);
+    if (result.skipped) {
+      return { error: `360 import didn't run — ${result.skipped}.` };
+    }
+    return {
+      ok: `360 import: ${result.imported} new, ${result.updated} updated${
+        result.unmatched > 0 ? `, ${result.unmatched} skipped (no matching customer email)` : ""
+      }.`,
+    };
+  }
+  return null;
+}
+
 export default function OrdersList() {
   const { orders, filter, search } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const [searchParams] = useSearchParams();
 
   return (
@@ -67,6 +88,21 @@ export default function OrdersList() {
           Orders are invoiced and paid before dispatch. Quotes convert to orders when the
           customer goes ahead.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Form method="post">
+          <input type="hidden" name="intent" value="import-360" />
+          <Button type="submit" variant="outline" size="sm">
+            Import direct 360 sales now
+          </Button>
+        </Form>
+        {actionData && "ok" in actionData && actionData.ok && (
+          <span className="text-sm text-muted-foreground">{actionData.ok}</span>
+        )}
+        {actionData && "error" in actionData && actionData.error && (
+          <span className="text-sm text-destructive">{actionData.error}</span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

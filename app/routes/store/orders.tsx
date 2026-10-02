@@ -71,6 +71,11 @@ export default function CustomerOrders() {
                       >
                         {order.order_number}
                       </Link>
+                      {order.origin === "360" && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          placed with our team
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDate(order.created_at)}

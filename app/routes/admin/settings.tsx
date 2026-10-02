@@ -146,6 +146,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const entries: Record<string, string> = {
       trade_api_url: String(form.get("trade_api_url") ?? "").trim(),
       orders_360_enabled: form.get("orders_360_enabled") === "on" ? "true" : "false",
+      orders_360_import_enabled:
+        form.get("orders_360_import_enabled") === "on" ? "true" : "false",
       stock_sync_minutes: String(form.get("stock_sync_minutes") ?? "30").trim(),
       trade_discount_percent:
         Number.isFinite(discountRaw) && discountRaw > 0 && discountRaw < 100
@@ -666,6 +668,23 @@ export default function SettingsPage() {
                 and confirms them in 360 and the portal mirrors the result back (lines,
                 freight, status). Leave off until 360's orders API is live — orders then
                 behave exactly as today.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  name="orders_360_import_enabled"
+                  defaultChecked={settings.orders_360_import_enabled === "true"}
+                  className="size-4 accent-primary"
+                />
+                Import direct 360 sales into customer accounts
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Sales the team processes in person or by phone straight into 360 appear in
+                the matching customer's portal order history (matched by email; history
+                from 1 July 2026). Needs 360's orders-feed endpoint — leave off until it's
+                live.
               </p>
             </div>
             <div className="flex flex-col gap-2">

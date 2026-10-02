@@ -145,6 +145,25 @@ dispatch/complete flows through the same mirror. Auth for all endpoints: same
    from till EOD, and accepts either the quote's or successor invoice's number.
 - (still requested, separate) `POST /api/trade/customers` — upsert portal
   trade customers into 360 (by email/ABN). Contract to be agreed later.
+- `GET /api/trade/orders-feed?since=<ISO>&limit=100` (360 side TO BUILD —
+  portal client ✅ `import360Orders` in three60-orders.server.ts, tested
+  against a mock): commercial-branch sales UPDATED since the cursor, oldest
+  first — `{ orders: [ { sale_number, portal_order_ref, status,
+  customer_email, note, delivery_address, created_at, updated_at,
+  total_inc_gst, amount_paid, lines: [{sku,name,qty,unit_price_inc_gst}] } ] }`.
+  Purpose: DIRECT (in-store/phone) sales appear in the matching portal
+  customer's order history (matched by email; history back to 1 July 2026 —
+  the default cursor) and print as tax invoices. Portal rules: skips rows
+  with `portal_order_ref` (the mirror owns those); imports only
+  confirmed/dispatched/completed (cancelled only updates an existing import);
+  upserts `origin='360'` orders keyed on sale_number (unique partial index,
+  order_number = the 360 sale number), replaces lines, keeps one synthetic
+  `360:<sale>` payment row so paid/balance shows right; NO emails fire;
+  cursor in settings `orders_360_import_cursor`; gated by
+  `orders_360_import_enabled` (Settings checkbox) + "Import direct 360 sales
+  now" button on /admin/orders. Customer pages label these "placed with our
+  team"; customers print their own Tax Invoice at /account/orders/:id/doc
+  (same module as the admin doc — own order + confirmed-or-later only).
 - `POST /api/trade/portal-login` (360 v001.668, "fireworks" on the CRM feed)
   — the portal calls it on EVERY successful customer sign-in (login page AND
   set-password auto-login), body `{ email, name, phone }` (no stored 360

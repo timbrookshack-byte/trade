@@ -1,5 +1,6 @@
-import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
-import { requireUser } from "~/lib/auth.server";
+import { Link, redirect, useLoaderData, type LoaderFunctionArgs } from "react-router";
+import { getUser } from "~/lib/auth.server";
+import { getCustomer } from "~/lib/customer-auth.server";
 import { getOrder } from "~/lib/orders.server";
 import { deliveryMethodLabel, type OrderItem, type Payment } from "~/lib/orders";
 import { getSettings } from "~/lib/settings.server";
@@ -14,14 +15,27 @@ export function meta({ data }: { data?: { docTitle?: string } }) {
 type DocType = "invoice" | "packing" | "quote";
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
-  await requireUser(context, request);
   const id = Number(params.id);
   if (!Number.isInteger(id)) throw new Response("Not found", { status: 404 });
   const data = await getOrder(context.db, id);
   if (!data) throw new Response("Not found", { status: 404 });
 
   const url = new URL(request.url);
-  const typeRaw = url.searchParams.get("type");
+  // The team sees every doc type; a customer sees only THEIR OWN order's
+  // Tax Invoice, and only once it's confirmed (the invoice is 360's
+  // corrected truth from that point).
+  let isCustomer = false;
+  const user = await getUser(context, request);
+  if (!user) {
+    const customer = await getCustomer(context, request);
+    if (!customer) throw redirect(`/trade/login?redirectTo=${url.pathname}`);
+    if (data.order.customer_id !== customer.id) throw new Response("Not found", { status: 404 });
+    if (!["confirmed", "picking", "dispatched", "completed"].includes(data.order.status)) {
+      throw new Response("Not found", { status: 404 });
+    }
+    isCustomer = true;
+  }
+  const typeRaw = isCustomer ? "invoice" : url.searchParams.get("type");
   const type: DocType = typeRaw === "packing" || typeRaw === "quote" ? typeRaw : "invoice";
   const docTitle =
     type === "invoice" ? "Tax Invoice" : type === "packing" ? "Packing Slip" : "Quotation";
@@ -52,6 +66,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     ...scrubbed,
     type,
     docTitle,
+    isCustomer,
     payment,
     company: {
       name: settings.company_name || "The Furniture Shack — Commercial",
@@ -65,7 +80,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 }
 
 export default function OrderDoc() {
-  const { order, items, payments, paid, balance, type, docTitle, company, payment, today } =
+  const { order, items, payments, paid, balance, type, docTitle, isCustomer, company, payment, today } =
     useLoaderData<typeof loader>();
   const total = Number(order.total_inc_gst);
   const showPrices = type !== "packing";
@@ -81,7 +96,10 @@ export default function OrderDoc() {
           Download PDF
         </button>
         <span className="text-sm text-muted-foreground">(choose "Save as PDF" in the dialog)</span>
-        <Link to={`/admin/orders/${order.id}`} className="ml-auto text-sm underline underline-offset-4">
+        <Link
+          to={isCustomer ? `/account/orders/${order.id}` : `/admin/orders/${order.id}`}
+          className="ml-auto text-sm underline underline-offset-4"
+        >
           Back to {order.status === "quote" ? "quote" : "order"}
         </Link>
       </div>

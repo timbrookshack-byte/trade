@@ -22,6 +22,8 @@ export default [
     route("account/orders", "routes/store/orders.tsx"),
     route("account/orders/:id", "routes/store/order.tsx"),
   ]),
+  // Customer print view of their Tax Invoice (standalone, no store shell)
+  route("account/orders/:id/doc", "routes/store/order-doc.tsx"),
   route("trade/logout", "routes/store/logout.tsx"),
 
   // Partner product feed (read-only JSON, Bearer key auth)

@@ -34,6 +34,8 @@ export function deliveryMethodLabel(value: string) {
 export interface Order {
   id: number;
   order_number: string | null;
+  /** 'portal' = placed here; '360' = direct sale imported from 360's feed. */
+  origin: "portal" | "360";
   status: OrderStatus;
   customer_id: number | null;
   business_name: string;

@@ -106,9 +106,20 @@ export default function CustomerOrder() {
           <h1 className="text-3xl font-bold tracking-tight">Order {order.order_number}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Placed {order.submitted_at ? formatDateTime(order.submitted_at) : ""}
+            {order.origin === "360" && " · with our team (in store or by phone)"}
           </p>
         </div>
-        <Badge>{STATUS_LABELS[order.status]}</Badge>
+        <div className="flex items-center gap-3">
+          {["confirmed", "picking", "dispatched", "completed"].includes(order.status) && (
+            <a
+              href={`/account/orders/${order.id}/doc`}
+              className="inline-flex h-9 items-center rounded-md border border-input bg-card px-3 text-sm font-medium hover:bg-accent"
+            >
+              Print tax invoice
+            </a>
+          )}
+          <Badge>{STATUS_LABELS[order.status]}</Badge>
+        </div>
       </div>
 
       <Card>

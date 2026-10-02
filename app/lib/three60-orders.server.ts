@@ -338,3 +338,147 @@ export async function notify360Login(
     console.log("360 portal-login failed:", String(err));
   }
 }
+
+/**
+ * Direct 360 sales → customer accounts. Stores sell in person / over the
+ * phone straight into 360; this imports those sales (history back to
+ * 1 July 2026 and everything onward) so customers see ALL their orders in
+ * the portal and can print tax invoices.
+ *
+ * Contract (360 side): GET /api/trade/orders-feed?since=<ISO>&limit=100 —
+ * commercial-branch sales UPDATED since the cursor, oldest first:
+ *   { "orders": [ { "sale_number", "portal_order_ref", "status",
+ *       "customer_email", "note", "delivery_address",
+ *       "created_at", "updated_at", "total_inc_gst", "amount_paid",
+ *       "lines": [ { "sku", "name", "qty", "unit_price_inc_gst" } ] } ] }
+ *
+ * Rules: portal-origin sales (portal_order_ref set) are SKIPPED — the
+ * mirror owns those. Store quotes stay in 360 (only confirmed/dispatched/
+ * completed import; cancelled only updates an already-imported sale).
+ * Idempotent on sale_number (origin='360' unique index); the cursor lives
+ * in settings.orders_360_import_cursor. No emails ever fire for these.
+ * Gated by settings.orders_360_import_enabled='true'.
+ */
+interface FeedSale {
+  sale_number: string;
+  portal_order_ref?: string | null;
+  status: string;
+  customer_email: string;
+  note?: string;
+  delivery_address?: string;
+  created_at?: string;
+  updated_at?: string;
+  total_inc_gst?: number;
+  amount_paid?: number;
+  lines?: { sku?: string; name?: string; qty?: number; unit_price_inc_gst?: number }[];
+}
+
+export async function import360Orders(context: AppLoadContext) {
+  const db = context.db;
+  const result = { skipped: "", imported: 0, updated: 0, unmatched: 0 };
+  const rows = await db<{ key: string; value: string }[]>`
+    SELECT key, value FROM settings WHERE key IN
+      ('trade_api_url', 'trade_api_token', 'orders_360_import_enabled', 'orders_360_import_cursor')
+  `;
+  const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  if (s.orders_360_import_enabled !== "true") return { ...result, skipped: "disabled" };
+  if (!s.trade_api_url || !s.trade_api_token) return { ...result, skipped: "360 not configured" };
+  const base = s.trade_api_url.replace(/\/products\/?$/, "");
+  let cursor = s.orders_360_import_cursor || "2026-07-01T00:00:00Z";
+
+  try {
+    for (let page = 0; page < 10; page++) {
+      const response = await fetch(
+        `${base}/orders-feed?since=${encodeURIComponent(cursor)}&limit=100`,
+        {
+          headers: { Authorization: `Bearer ${s.trade_api_token}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(20000),
+        },
+      );
+      if (!response.ok) {
+        return { ...result, skipped: `feed returned ${response.status}` };
+      }
+      const data = (await response.json()) as { orders?: FeedSale[] };
+      const sales = data.orders ?? [];
+      for (const sale of sales) {
+        if (sale.updated_at && sale.updated_at > cursor) cursor = sale.updated_at;
+        if (!sale.sale_number || sale.portal_order_ref) continue; // mirror owns portal orders
+        if (!["confirmed", "dispatched", "completed", "cancelled"].includes(sale.status)) continue;
+        const [customer] = await db<
+          { id: number; business_name: string; contact_name: string; email: string; phone: string }[]
+        >`
+          SELECT id, business_name, contact_name, email, phone FROM customers
+          WHERE lower(email) = lower(${sale.customer_email ?? ""}) AND active
+        `;
+        if (!customer) {
+          result.unmatched++;
+          continue;
+        }
+        const [existing] = await db<{ id: number }[]>`
+          SELECT id FROM orders WHERE origin = '360' AND sale_number_360 = ${sale.sale_number}
+        `;
+        if (!existing && sale.status === "cancelled") continue;
+
+        const total = Number(sale.total_inc_gst) || 0;
+        let orderId: number;
+        if (existing) {
+          await db`
+            UPDATE orders SET status = ${sale.status}, note = ${sale.note ?? ""},
+              delivery_address = ${sale.delivery_address ?? ""},
+              total_inc_gst = ${total}, synced_360_at = now(), updated_at = now()
+            WHERE id = ${existing.id}
+          `;
+          orderId = existing.id;
+          result.updated++;
+        } else {
+          const [created] = await db<{ id: number }[]>`
+            INSERT INTO orders (order_number, origin, status, customer_id, business_name,
+                                customer_name, customer_email, customer_phone,
+                                delivery_address, note, total_inc_gst, sale_number_360,
+                                submitted_at, synced_360_at)
+            VALUES (${sale.sale_number}, '360', ${sale.status}, ${customer.id},
+                    ${customer.business_name}, ${customer.contact_name}, ${customer.email},
+                    ${customer.phone}, ${sale.delivery_address ?? ""}, ${sale.note ?? ""},
+                    ${total}, ${sale.sale_number},
+                    ${sale.created_at ?? new Date().toISOString()}, now())
+            RETURNING id
+          `;
+          orderId = created.id;
+          result.imported++;
+        }
+        await db`DELETE FROM order_items WHERE order_id = ${orderId}`;
+        const lines = sale.lines ?? [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          await db`
+            INSERT INTO order_items (order_id, product_id, sku, name, quantity,
+                                     unit_price_inc_gst, position)
+            VALUES (${orderId},
+                    (SELECT id FROM products WHERE upper(sku) = upper(${line.sku ?? ""}) LIMIT 1),
+                    ${line.sku ?? ""}, ${line.name ?? ""},
+                    ${Math.max(1, Math.trunc(Number(line.qty) || 1))},
+                    ${Number(line.unit_price_inc_gst) || 0}, ${i})
+          `;
+        }
+        // One synthetic payment row mirrors 360's ledger so the customer's
+        // invoice shows the right paid/balance. Never relayed back.
+        await db`DELETE FROM payments WHERE order_id = ${orderId} AND reference = ${"360:" + sale.sale_number}`;
+        const paid = Number(sale.amount_paid) || 0;
+        if (paid > 0) {
+          await db`
+            INSERT INTO payments (order_id, method, amount, reference)
+            VALUES (${orderId}, 'other', ${paid}, ${"360:" + sale.sale_number})
+          `;
+        }
+      }
+      if (sales.length < 100) break;
+    }
+  } catch (err) {
+    return { ...result, skipped: `feed error: ${String(err)}` };
+  }
+  await db`
+    INSERT INTO settings (key, value) VALUES ('orders_360_import_cursor', ${cursor})
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+  `;
+  return result;
+}
