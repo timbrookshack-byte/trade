@@ -5,6 +5,9 @@
   "compatibility_date": "2025-04-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Run the Worker near the database instead of near the visitor: every
+  // request makes several DB round trips, so locality to Postgres wins.
+  "placement": { "mode": "smart" },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",

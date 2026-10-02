@@ -9,7 +9,7 @@ import {
 } from "react-router";
 import { requireUser } from "~/lib/auth.server";
 import { import360Orders } from "~/lib/three60-orders.server";
-import { listOrders, type OrderListFilter } from "~/lib/orders.server";
+import { countOrders, listOrders, ORDERS_PER_PAGE, type OrderListFilter } from "~/lib/orders.server";
 import { STATUS_LABELS, type Order, type OrderStatus } from "~/lib/orders";
 import { cn, formatCurrency, formatDateTime } from "~/lib/utils";
 import { Badge } from "~/components/ui/badge";
@@ -47,8 +47,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const filterParam = url.searchParams.get("filter");
   const filter = (FILTERS.find((f) => f.key === filterParam)?.key ?? "open") as OrderListFilter;
   const search = url.searchParams.get("q") ?? "";
-  const orders = await listOrders(context.db, filter, search);
-  return { orders, filter, search };
+  const page = Math.max(1, Math.trunc(Number(url.searchParams.get("page")) || 1));
+  const [orders, total] = await Promise.all([
+    listOrders(context.db, filter, search, page),
+    countOrders(context.db, filter, search),
+  ]);
+  return { orders, filter, search, page, total, perPage: ORDERS_PER_PAGE };
 }
 
 function statusVariant(status: OrderStatus) {
@@ -76,7 +80,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function OrdersList() {
-  const { orders, filter, search } = useLoaderData<typeof loader>();
+  const { orders, filter, search, page, total, perPage } = useLoaderData<typeof loader>();
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
+  const pageQuery = `filter=${filter}${search ? `&q=${encodeURIComponent(search)}` : ""}`;
   const actionData = useActionData<typeof action>();
   const [searchParams] = useSearchParams();
 
@@ -196,6 +202,31 @@ export default function OrdersList() {
               })}
             </TableBody>
           </Table>
+          {total > perPage && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
+              </span>
+              <span className="flex gap-2">
+                {page > 1 && (
+                  <Link
+                    to={`/admin/orders?${pageQuery}&page=${page - 1}`}
+                    className="rounded-md border border-input bg-card px-3 py-1.5 font-medium hover:bg-accent"
+                  >
+                    ← Previous
+                  </Link>
+                )}
+                {page < lastPage && (
+                  <Link
+                    to={`/admin/orders?${pageQuery}&page=${page + 1}`}
+                    className="rounded-md border border-input bg-card px-3 py-1.5 font-medium hover:bg-accent"
+                  >
+                    Next →
+                  </Link>
+                )}
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

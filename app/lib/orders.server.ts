@@ -74,8 +74,11 @@ export async function getOrder(db: Sql, id: number) {
 
 export type OrderListFilter = "open" | "quotes" | OrderStatus | "all";
 
-export async function listOrders(db: Sql, filter: OrderListFilter, search = "") {
+export const ORDERS_PER_PAGE = 50;
+
+export async function listOrders(db: Sql, filter: OrderListFilter, search = "", page = 1) {
   const term = search.trim() ? `%${search.trim()}%` : null;
+  const offset = Math.max(0, (Math.max(1, page) - 1) * ORDERS_PER_PAGE);
   return db<(Order & { item_count: number; paid: string | null })[]>`
     SELECT o.*,
            (SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id)::int AS item_count,
@@ -91,8 +94,26 @@ export async function listOrders(db: Sql, filter: OrderListFilter, search = "") 
            OR o.business_name ILIKE ${term} OR o.customer_name ILIKE ${term}
            OR o.customer_email ILIKE ${term})
     ORDER BY o.created_at DESC
-    LIMIT 500
+    LIMIT ${ORDERS_PER_PAGE} OFFSET ${offset}
   `;
+}
+
+/** Total rows for the same filter/search, for the pagination bar. */
+export async function countOrders(db: Sql, filter: OrderListFilter, search = "") {
+  const term = search.trim() ? `%${search.trim()}%` : null;
+  const [row] = await db<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM orders o
+    WHERE CASE ${filter}
+        WHEN 'open' THEN o.status IN ('submitted', 'confirmed', 'picking')
+        WHEN 'quotes' THEN o.status = 'quote'
+        WHEN 'all' THEN TRUE
+        ELSE o.status = ${filter}
+      END
+      AND (${term}::text IS NULL OR o.order_number ILIKE ${term}
+           OR o.business_name ILIKE ${term} OR o.customer_name ILIKE ${term}
+           OR o.customer_email ILIKE ${term})
+  `;
+  return row?.n ?? 0;
 }
 
 /** GST component of an inc-GST amount (prices are stored inc GST). */

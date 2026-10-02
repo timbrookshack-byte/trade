@@ -47,7 +47,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
   const url = new URL(request.url);
   const query = parseCustomerQuery(url);
-  const customers = await listCustomers(context.db, query);
+  // The export always covers EVERY matching row, not just the page shown.
+  const customers = await listCustomers(context.db, { ...query, perPage: 100000 });
 
   const lines = [csvRow(HEADERS)];
   for (const c of customers as CustomerRow[]) {

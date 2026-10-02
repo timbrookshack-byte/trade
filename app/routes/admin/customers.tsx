@@ -10,7 +10,13 @@ import {
 import { requireUser } from "~/lib/auth.server";
 import { createInviteToken } from "~/lib/customer-auth.server";
 import { businessTypeLabel, CUSTOMER_FILTERS, customerQueryString } from "~/lib/customers";
-import { listCustomers, parseCustomerQuery, type CustomerRow } from "~/lib/customers.server";
+import {
+  countCustomers,
+  CUSTOMERS_PER_PAGE,
+  listCustomers,
+  parseCustomerQuery,
+  type CustomerRow,
+} from "~/lib/customers.server";
 import { emailTemplates, queueEmail } from "~/lib/email.server";
 import {
   customerInviteEmail,
@@ -42,10 +48,15 @@ const FILTERS = CUSTOMER_FILTERS;
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   await requireUser(context, request);
-  const query = parseCustomerQuery(new URL(request.url));
+  const url = new URL(request.url);
+  const query = parseCustomerQuery(url);
   const { filter, sort, dir, search } = query;
+  const page = Math.max(1, Math.trunc(Number(url.searchParams.get("page")) || 1));
   const db = context.db;
-  const customers = await listCustomers(db, query);
+  const [customers, total] = await Promise.all([
+    listCustomers(db, { ...query, page }),
+    countCustomers(db, query),
+  ]);
   const [inviteStats] = await db<
     { to_invite: number; invited: number; activated: number; sent_today: number }[]
   >`
@@ -70,6 +81,9 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     sort,
     dir,
     search,
+    page,
+    total,
+    perPage: CUSTOMERS_PER_PAGE,
     inviteCampaign: {
       ...inviteStats,
       enabled: campaignSettings.launch_invites_enabled === "true",
@@ -221,7 +235,10 @@ function SortHeader({
 }
 
 export default function CustomersPage() {
-  const { customers, filter, sort, dir, search, inviteCampaign } = useLoaderData<typeof loader>();
+  const { customers, filter, sort, dir, search, page, total, perPage, inviteCampaign } =
+    useLoaderData<typeof loader>();
+  const listQuery = customerQueryString({ filter, sort, dir, search });
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -557,6 +574,31 @@ export default function CustomersPage() {
               ))}
             </TableBody>
           </Table>
+          {total > perPage && (
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
+              </span>
+              <span className="flex gap-2">
+                {page > 1 && (
+                  <Link
+                    to={`/admin/customers?${listQuery}&page=${page - 1}`}
+                    className="rounded-md border border-input bg-card px-3 py-1.5 font-medium hover:bg-accent"
+                  >
+                    ← Previous
+                  </Link>
+                )}
+                {page < lastPage && (
+                  <Link
+                    to={`/admin/customers?${listQuery}&page=${page + 1}`}
+                    className="rounded-md border border-input bg-card px-3 py-1.5 font-medium hover:bg-accent"
+                  >
+                    Next →
+                  </Link>
+                )}
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
