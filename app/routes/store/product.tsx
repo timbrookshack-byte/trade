@@ -9,7 +9,7 @@ import {
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
-import { addToCart, readCart, serializeCart } from "~/lib/cart.server";
+import { addToCart, bundleCartLines, readCart, serializeCart } from "~/lib/cart.server";
 import { getStoreProduct, scrubProductForPublic } from "~/lib/store.server";
 import { getBundleComponents } from "~/lib/shopify.server";
 import { getCustomer } from "~/lib/customer-auth.server";
@@ -53,7 +53,14 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   }
   const form = await request.formData();
   const qty = Math.max(1, Math.min(999, Math.trunc(Number(form.get("qty")) || 1)));
-  const cart = addToCart(await readCart(context, request), product.sku, qty);
+  // Bundles cart as their component lines when price-safe (see bundleCartLines).
+  const parts = await bundleCartLines(context, product);
+  let cart = await readCart(context, request);
+  if (parts) {
+    for (const part of parts) cart = addToCart(cart, part.sku, part.qty * qty);
+  } else {
+    cart = addToCart(cart, product.sku, qty);
+  }
   return redirect(`/products/${encodeURIComponent(product.sku)}?added=${qty}`, {
     headers: { "Set-Cookie": await serializeCart(context, cart) },
   });
@@ -290,6 +297,12 @@ export default function StoreProduct() {
                   </li>
                 ))}
               </ul>
+              {loggedIn && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Adding this package puts each piece in your cart individually — the
+                  total is the package price, and your invoice lists every item.
+                </p>
+              )}
             </div>
           )}
 

@@ -216,6 +216,14 @@ portal via the Admin GraphQL API (`app/lib/shopify.server.ts`):
   storefront's "Incoming — ETA" band on packages.
 - Storefront product page shows "What's included" (names + qtys, no prices);
   rides the same 15-min cron ("Sync bundles" button for manual runs).
+- **Bundles cart as their COMPONENT lines** (`bundleCartLines` in
+  cart.server.ts, same philosophy as dining sets): add-to-cart explodes a
+  bundle into real component SKUs × qty, so invoices list the pieces and
+  the 360 push matches stock items natively (no unmatchable bundle SKU).
+  Only when price-safe — every component active/priced/not-discontinued AND
+  Σ(component trade × qty) equals the bundle's advertised price to the cent
+  (always true for default-priced bundles). A manually-priced bundle whose
+  total differs keeps the old single-line + components-metadata behaviour.
 - Component SKUs in Shopify must match 360 SKUs — mismatches show on the
   bundle's admin edit page as "not found in portal catalogue".
 - **Description enrichment**: NON-bundle Shopify products are SKU-matched to
