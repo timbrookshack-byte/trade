@@ -4,6 +4,7 @@ import {
   type AppLoadContext,
 } from "react-router";
 import { hashPassword, verifyPassword } from "./auth.server";
+import { sha256Hex } from "./partner.server";
 import type { BusinessType } from "./customers";
 
 export interface Customer {
@@ -107,6 +108,8 @@ export async function verifyCustomerLogin(
 /**
  * Create (or refresh) an invite/set-password token. Returns the URL path.
  * Admin invites default to 14 days; self-serve forgot-password links pass 1.
+ * Only the SHA-256 of the token is stored — a database read must never be
+ * enough to take over an account (2026-11 exposure hardening).
  */
 export async function createInviteToken(
   context: AppLoadContext,
@@ -116,15 +119,18 @@ export async function createInviteToken(
   const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
   await context.db`
     INSERT INTO password_resets (customer_id, token, expires_at)
-    VALUES (${customerId}, ${token}, now() + (${days} * interval '1 day'))
+    VALUES (${customerId}, ${await sha256Hex(token)}, now() + (${days} * interval '1 day'))
   `;
   return `/trade/set-password?token=${token}`;
 }
 
 export async function consumeInviteToken(context: AppLoadContext, token: string) {
+  // Hashed at rest; the plaintext comparison keeps links that were issued
+  // before the hashing change working until they expire.
   const rows = await context.db<{ id: number; customer_id: number }[]>`
     SELECT id, customer_id FROM password_resets
-    WHERE token = ${token} AND used_at IS NULL AND expires_at > now()
+    WHERE token IN (${await sha256Hex(token)}, ${token})
+      AND used_at IS NULL AND expires_at > now()
   `;
   return rows[0] ?? null;
 }

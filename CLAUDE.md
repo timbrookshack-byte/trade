@@ -431,6 +431,14 @@ registration received/approved. Domain-verified sender.
   documents always show the full ex/GST/inc breakdown.
 - Trade prices and the feed token are never in client-side JS. Anything
   touching the DB or secrets lives in `*.server.ts` modules.
+- **Supabase's Data API is locked out** (migration 0024, after a 2026-11
+  security review): RLS is ON for every public table (no policies — the
+  portal connects directly as the table owner, which RLS doesn't apply to)
+  and the `anon`/`authenticated` roles have all privileges revoked,
+  including by default for FUTURE tables. Keep it that way: new tables need
+  no policies, and nothing may ever use the anon key. Reset/invite tokens
+  are stored as SHA-256 (`password_resets.token`), like partner keys — a
+  database read must never be enough to take over an account.
 - Australian formats: DD/MM/YYYY, AUD, phone formats.
 - Timezone: Australia/Brisbane for all business logic (360 does the same).
 - Every screen assumes iPad-width usage by the trade team.
