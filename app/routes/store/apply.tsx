@@ -3,12 +3,14 @@ import {
   Link,
   redirect,
   useActionData,
+  useLoaderData,
   useNavigation,
   type ActionFunctionArgs,
   type LoaderFunctionArgs,
 } from "react-router";
 import { createCustomerSession, getCustomer, registerCustomer } from "~/lib/customer-auth.server";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
+import { getTurnstileSiteKey, TURNSTILE_SCRIPT_URL, verifyTurnstile } from "~/lib/antispam.server";
 import { BUSINESS_TYPES, type BusinessType } from "~/lib/customers";
 import { Button } from "~/components/ui/button";
 import { Input, Select, Textarea } from "~/components/ui/input";
@@ -28,11 +30,14 @@ export function meta() {
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (await getCustomer(context, request)) throw redirect("/products");
-  return null;
+  return { turnstileSiteKey: await getTurnstileSiteKey(context) };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
   const form = await request.formData();
+  if (!(await verifyTurnstile(context, request, form))) {
+    return { error: "The spam check didn't pass — please try submitting again." };
+  }
   const businessName = String(form.get("business_name") ?? "").trim();
   const abn = String(form.get("abn") ?? "").trim();
   const businessTypeRaw = String(form.get("business_type") ?? "");
@@ -87,6 +92,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function Apply() {
+  const { turnstileSiteKey } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
@@ -207,6 +213,12 @@ export default function Apply() {
                 autoComplete="new-password"
               />
             </div>
+            {turnstileSiteKey && (
+              <div className="sm:col-span-2">
+                <script src={TURNSTILE_SCRIPT_URL} async defer />
+                <div className="cf-turnstile" data-sitekey={turnstileSiteKey} />
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Button
                 type="submit"

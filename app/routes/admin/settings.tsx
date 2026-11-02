@@ -50,6 +50,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     shopify_client_secret,
     shopify_oauth_state: _state,
     resend_api_key,
+    turnstile_secret,
     ...safe
   } = settings;
   const partnerKeys = await context.db<
@@ -73,6 +74,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     shopifyConnected: Boolean(shopify_admin_token),
     shopifySecretConfigured: Boolean(shopify_client_secret),
     resendConfigured: Boolean(resend_api_key),
+    turnstileConfigured: Boolean(turnstile_secret),
   };
 }
 
@@ -214,6 +216,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
       : { error: `Test email failed. ${result.detail}` };
   }
 
+  if (intent === "antispam") {
+    const entries: Record<string, string> = {
+      turnstile_site_key: String(form.get("turnstile_site_key") ?? "").trim(),
+    };
+    const secret = String(form.get("turnstile_secret") ?? "").trim();
+    if (secret) entries.turnstile_secret = secret;
+    await setSettings(context, entries);
+    return { ok: "Spam protection settings saved." };
+  }
+
   if (intent === "emails") {
     const entries: Record<string, string> = {
       email_from: String(form.get("email_from") ?? "").trim(),
@@ -229,7 +241,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function SettingsPage() {
-  const { settings, partnerKeys, tokenConfigured, shopifyConnected, shopifySecretConfigured, resendConfigured } =
+  const { settings, partnerKeys, tokenConfigured, shopifyConnected, shopifySecretConfigured, resendConfigured, turnstileConfigured } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
@@ -849,6 +861,52 @@ export default function SettingsPage() {
               Sends to your admin login address and shows Resend's actual response up top —
               including the exact error if the key is wrong or the from-domain isn't verified.
             </p>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Spam protection (Cloudflare Turnstile)</CardTitle>
+          <CardDescription>
+            Invisible "are you human" check on the contact and application forms. Create a
+            free Turnstile widget at Cloudflare dashboard → Turnstile → Add site (domain:
+            thefurnitureshack.trade, mode: Managed) and paste both keys here. Blank = off;
+            the built-in filters (links in messages, repeats) run either way.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form method="post" className="grid gap-4 sm:grid-cols-2">
+            <input type="hidden" name="intent" value="antispam" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="turnstile_site_key">Site key</Label>
+              <Input
+                id="turnstile_site_key"
+                name="turnstile_site_key"
+                placeholder="0x4AAA…"
+                defaultValue={settings.turnstile_site_key ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="turnstile_secret">
+                Secret key{" "}
+                <span className="font-normal text-muted-foreground">
+                  {turnstileConfigured ? "(configured — blank keeps it)" : "(not configured)"}
+                </span>
+              </Label>
+              <Input
+                id="turnstile_secret"
+                name="turnstile_secret"
+                type="password"
+                autoComplete="off"
+                placeholder={turnstileConfigured ? "••••••••••••" : "0x4AAA…"}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={busy}>
+                Save spam protection
+              </Button>
+            </div>
           </Form>
         </CardContent>
       </Card>

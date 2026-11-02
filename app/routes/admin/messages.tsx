@@ -36,6 +36,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 export async function action({ request, context }: ActionFunctionArgs) {
   await requireUser(context, request);
   const form = await request.formData();
+  if (form.get("intent") === "delete-handled") {
+    const rows = await context.db<{ id: number }[]>`
+      DELETE FROM contact_messages WHERE handled RETURNING id
+    `;
+    return { ok: `${rows.length} handled message(s) deleted.` };
+  }
   const id = Number(form.get("id"));
   if (Number.isInteger(id)) {
     await context.db`UPDATE contact_messages SET handled = NOT handled WHERE id = ${id}`;
@@ -50,11 +56,26 @@ export default function MessagesPage() {
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
-        <p className="text-sm text-muted-foreground">
-          Enquiries from the public contact page. Unhandled messages sort to the top.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
+          <p className="text-sm text-muted-foreground">
+            Enquiries from the public contact page. Unhandled messages sort to the top.
+          </p>
+        </div>
+        <Form
+          method="post"
+          onSubmit={(e) => {
+            if (!confirm("Delete every message marked handled? This can't be undone.")) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <input type="hidden" name="intent" value="delete-handled" />
+          <Button type="submit" variant="outline" size="sm" disabled={busy}>
+            Delete all handled
+          </Button>
+        </Form>
       </div>
 
       {messages.length === 0 ? (

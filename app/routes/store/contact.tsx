@@ -10,6 +10,7 @@ import {
 } from "react-router";
 import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
 import { getSettings } from "~/lib/settings.server";
+import { getTurnstileSiteKey, isContactSpam, TURNSTILE_SCRIPT_URL, verifyTurnstile } from "~/lib/antispam.server";
 import { getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { instagramInfo } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -34,6 +35,7 @@ export async function loader({ context }: LoaderFunctionArgs) {
     "company_hours",
   ]);
   return {
+    turnstileSiteKey: await getTurnstileSiteKey(context),
     company: {
       name: settings.company_name || "The Furniture Shack — Commercial",
       phone: settings.company_phone || "",
@@ -58,6 +60,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   if (!name || !email.includes("@") || !message) {
     return { error: "Please fill in your name, a valid email, and a message." };
   }
+  // Machine spam (links, repeats) is dropped SILENTLY — a fake success
+  // teaches the bot nothing. Real enquiries never trip these.
+  if (await isContactSpam(context, email, message)) {
+    return redirect("/contact?sent=1");
+  }
+  if (!(await verifyTurnstile(context, request, form))) {
+    return { error: "The spam check didn't pass — please try submitting again." };
+  }
   await context.db`
     INSERT INTO contact_messages (name, email, phone, message)
     VALUES (${name}, ${email}, ${phone}, ${message.slice(0, 5000)})
@@ -76,7 +86,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 }
 
 export default function Contact() {
-  const { company } = useLoaderData<typeof loader>();
+  const { company, turnstileSiteKey } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
@@ -230,6 +240,12 @@ export default function Contact() {
                 <Label htmlFor="message">Message</Label>
                 <Textarea id="message" name="message" required rows={5} />
               </div>
+              {turnstileSiteKey && (
+                <div className="sm:col-span-2">
+                  <script src={TURNSTILE_SCRIPT_URL} async defer />
+                  <div className="cf-turnstile" data-sitekey={turnstileSiteKey} />
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <Button
                   type="submit"
