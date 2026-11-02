@@ -10,7 +10,8 @@ import {
 } from "react-router";
 import { createCustomerSession, getCustomer, registerCustomer } from "~/lib/customer-auth.server";
 import { emailTemplates, getNotifyAddress, queueEmail } from "~/lib/email.server";
-import { getTurnstileSiteKey, TURNSTILE_SCRIPT_URL, verifyTurnstile } from "~/lib/antispam.server";
+import { getTurnstileSiteKey, verifyTurnstile } from "~/lib/antispam.server";
+import { TURNSTILE_SCRIPT_URL } from "~/lib/antispam";
 import { BUSINESS_TYPES, type BusinessType } from "~/lib/customers";
 import { Button } from "~/components/ui/button";
 import { Input, Select, Textarea } from "~/components/ui/input";

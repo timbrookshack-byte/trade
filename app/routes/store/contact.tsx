@@ -10,7 +10,8 @@ import {
 } from "react-router";
 import { Clock, Instagram, Mail, MapPin, Phone } from "lucide-react";
 import { getSettings } from "~/lib/settings.server";
-import { getTurnstileSiteKey, isContactSpam, TURNSTILE_SCRIPT_URL, verifyTurnstile } from "~/lib/antispam.server";
+import { getTurnstileSiteKey, isContactSpam, verifyTurnstile } from "~/lib/antispam.server";
+import { TURNSTILE_SCRIPT_URL } from "~/lib/antispam";
 import { getNotifyAddress, queueEmail } from "~/lib/email.server";
 import { instagramInfo } from "~/lib/utils";
 import { Button } from "~/components/ui/button";

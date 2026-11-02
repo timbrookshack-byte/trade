@@ -37,10 +37,6 @@ export async function verifyTurnstile(context: AppLoadContext, request: Request,
   }
 }
 
-/** Widget markup helpers: load the script once, render the div per form. */
-export const TURNSTILE_SCRIPT_URL =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js";
-
 /** Obvious machine spam: links in the message (real enquiries describe, they
  * don't link) or a byte-identical recent repeat from the same email. */
 export async function isContactSpam(
