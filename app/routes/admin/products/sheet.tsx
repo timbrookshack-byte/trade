@@ -149,7 +149,27 @@ export default function ProductSheet() {
                   </p>
                 )}
                 {p.description && (
-                  <p className="line-clamp-3 text-sm text-neutral-600">{p.description}</p>
+                  <div className="space-y-1 text-sm text-neutral-600">
+                    {p.description.split(/\r?\n/).map((line, i) => {
+                      const text = line.trim();
+                      if (!text) return null;
+                      if (text.startsWith("## ")) {
+                        return (
+                          <p key={i} className="pt-1 font-semibold text-neutral-800">
+                            {text.slice(3)}
+                          </p>
+                        );
+                      }
+                      if (text.startsWith("• ") || text.startsWith("- ")) {
+                        return (
+                          <p key={i} className="pl-3">
+                            • {text.slice(2)}
+                          </p>
+                        );
+                      }
+                      return <p key={i}>{text}</p>;
+                    })}
+                  </div>
                 )}
                 <div className="mt-auto pt-2">
                   {priceMode === "commercial" && commercial != null && (
