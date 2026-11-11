@@ -150,6 +150,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       orders_360_enabled: form.get("orders_360_enabled") === "on" ? "true" : "false",
       orders_360_import_enabled:
         form.get("orders_360_import_enabled") === "on" ? "true" : "false",
+      customers_360_enabled: form.get("customers_360_enabled") === "on" ? "true" : "false",
       stock_sync_minutes: String(form.get("stock_sync_minutes") ?? "30").trim(),
       trade_discount_percent:
         Number.isFinite(discountRaw) && discountRaw > 0 && discountRaw < 100
@@ -697,6 +698,22 @@ export default function SettingsPage() {
                 the matching customer's portal order history (matched by email; history
                 from 1 July 2026). Needs 360's orders-feed endpoint — leave off until it's
                 live.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  name="customers_360_enabled"
+                  defaultChecked={settings.customers_360_enabled === "true"}
+                  className="size-4 accent-primary"
+                />
+                Sync customer cards to 360
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Approved customers (and later edits to them) push to 360's customer list,
+                matched by email, every 15 minutes. Needs 360's customers endpoint — leave
+                off until it's live.
               </p>
             </div>
             <div className="flex flex-col gap-2">

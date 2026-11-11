@@ -1,7 +1,7 @@
 import { createRequestHandler, type AppLoadContext } from "react-router";
 import { createDb, type Sql } from "../app/lib/db.server";
 import { runScheduledSync } from "../app/lib/sync.server";
-import { import360Orders, syncOrders360 } from "../app/lib/three60-orders.server";
+import { import360Orders, push360Customers, syncOrders360 } from "../app/lib/three60-orders.server";
 import { runLaunchInviteDrip } from "../app/lib/invites.server";
 
 declare module "react-router" {
@@ -50,6 +50,11 @@ export default {
         .then(() => import360Orders(context))
         .then((result) => {
           if (result.skipped !== "disabled") console.log("360 import:", JSON.stringify(result));
+        })
+        // Customer cards -> 360 (no-op unless enabled).
+        .then(() => push360Customers(context))
+        .then((result) => {
+          if (result.skipped !== "disabled") console.log("360 customers:", JSON.stringify(result));
         })
         // Launch invite drip (no-op unless the campaign is enabled).
         .then(() => runLaunchInviteDrip(context))

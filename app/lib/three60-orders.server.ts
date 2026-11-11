@@ -490,3 +490,101 @@ export async function import360Orders(
   }
   return result;
 }
+
+/**
+ * Customer cards → 360 (the portal MASTERS trade customers; 360 upserts by
+ * email, ABN as the tie-breaker).
+ *
+ * Contract (360 side): POST /api/trade/customers, same Bearer token —
+ *   { "customers": [ { "portal_customer_id", "business_name",
+ *       "contact_name", "email", "phone", "abn", "address",
+ *       "business_type", "active", "created_at" } ] }
+ * → 200 { "ok": true, "results": [ { "email", "customer_id",
+ *       "outcome": "created|updated|skipped" } ] }. Idempotent; at most 100
+ * customers per call.
+ *
+ * Sweep: approved customers whose updated_at has moved past synced_360_at
+ * (edits, approval, deactivation all bump updated_at). Rides the 15-min
+ * cron behind settings customers_360_enabled; "Sync customers to 360 now"
+ * on /admin/customers runs it on demand. Never throws.
+ */
+export async function push360Customers(
+  context: AppLoadContext,
+  opts: { maxBatches?: number } = {},
+) {
+  const db = context.db;
+  const result = { skipped: "", pushed: 0, remaining: 0 };
+  const rows = await db<{ key: string; value: string }[]>`
+    SELECT key, value FROM settings
+    WHERE key IN ('trade_api_url', 'trade_api_token', 'customers_360_enabled')
+  `;
+  const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  if (s.customers_360_enabled !== "true") return { ...result, skipped: "disabled" };
+  if (!s.trade_api_url || !s.trade_api_token) return { ...result, skipped: "360 not configured" };
+  const url = s.trade_api_url.replace(/\/products\/?$/, "") + "/customers";
+
+  try {
+    for (let batch = 0; batch < Math.max(1, opts.maxBatches ?? 5); batch++) {
+      const customers = await db<
+        {
+          id: number;
+          business_name: string;
+          contact_name: string;
+          email: string;
+          phone: string;
+          abn: string;
+          address: string;
+          business_type: string;
+          active: boolean;
+          created_at: string;
+        }[]
+      >`
+        SELECT id, business_name, contact_name, email, phone, abn, address,
+               business_type, active, created_at::text AS created_at
+        FROM customers
+        WHERE approved AND (synced_360_at IS NULL OR updated_at > synced_360_at)
+        ORDER BY updated_at ASC
+        LIMIT 100
+      `;
+      if (customers.length === 0) break;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${s.trade_api_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customers: customers.map((c) => ({
+            portal_customer_id: c.id,
+            business_name: c.business_name,
+            contact_name: c.contact_name,
+            email: c.email,
+            phone: c.phone,
+            abn: c.abn,
+            address: c.address,
+            business_type: c.business_type,
+            active: c.active,
+            created_at: c.created_at,
+          })),
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) {
+        return { ...result, skipped: `360 replied ${response.status}` };
+      }
+      await db`
+        UPDATE customers SET synced_360_at = now() WHERE id IN ${db(customers.map((c) => c.id))}
+      `;
+      result.pushed += customers.length;
+      if (customers.length < 100) break;
+    }
+    const [left] = await db<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM customers
+      WHERE approved AND (synced_360_at IS NULL OR updated_at > synced_360_at)
+    `;
+    result.remaining = left?.n ?? 0;
+  } catch (err) {
+    return { ...result, skipped: `push error: ${String(err)}` };
+  }
+  return result;
+}

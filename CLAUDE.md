@@ -143,8 +143,18 @@ dispatch/complete flows through the same mirror. Auth for all endpoints: same
    payment recorded in the portal, so 360's ledger stays whole. 360 side:
    idempotent on `reference`, honours `paid_at` for the trading day, excluded
    from till EOD, and accepts either the quote's or successor invoice's number.
-- (still requested, separate) `POST /api/trade/customers` — upsert portal
-  trade customers into 360 (by email/ABN). Contract to be agreed later.
+- `POST /api/trade/customers` (360 side TO BUILD — portal client ✅
+  `push360Customers` in three60-orders.server.ts, tested against a mock):
+  the portal MASTERS trade customers and pushes cards to 360 — body
+  `{ customers: [ { portal_customer_id, business_name, contact_name, email,
+  phone, abn, address, business_type, active, created_at } ] }` (≤100/call,
+  same Bearer token), 360 upserts by email with ABN as tie-breaker →
+  `{ ok, results: [{ email, customer_id, outcome }] }`. Portal sweep:
+  APPROVED customers whose updated_at has passed customers.synced_360_at
+  (migration 0025) — approval, edits and deactivation all re-queue; rides
+  the 15-min cron behind settings `customers_360_enabled` + a "Sync
+  customers to 360" button on /admin/customers. Pending applications never
+  push. Never throws; failures retry next sweep.
 - `GET /api/trade/orders-feed?since=<ISO>&limit=100` (360 side TO BUILD —
   portal client ✅ `import360Orders` in three60-orders.server.ts, tested
   against a mock): commercial-branch sales UPDATED since the cursor, oldest

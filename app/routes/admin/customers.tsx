@@ -24,6 +24,7 @@ import {
   runLaunchInviteDrip,
   requeueUnactivated,
 } from "~/lib/invites.server";
+import { push360Customers } from "~/lib/three60-orders.server";
 import { getSettings, setSettings } from "~/lib/settings.server";
 import { cn, formatDate } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -144,6 +145,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return { error: "Unknown action." };
   }
 
+  if (intent === "sync-360") {
+    const result = await push360Customers(context, { maxBatches: 5 });
+    if (result.skipped) return { error: `Customer sync didn't run — ${result.skipped}.` };
+    return {
+      ok: `${result.pushed} customer card(s) pushed to 360${
+        result.remaining > 0 ? ` — ${result.remaining} still queued for the next sweep` : ""
+      }.`,
+    };
+  }
+
   const id = Number(form.get("id"));
   if (!Number.isInteger(id)) return { error: "Invalid customer." };
 
@@ -261,6 +272,12 @@ export default function CustomersPage() {
           >
             Export CSV
           </a>
+          <Form method="post" className="inline">
+            <input type="hidden" name="intent" value="sync-360" />
+            <Button type="submit" variant="outline" disabled={busy}>
+              Sync customers to 360
+            </Button>
+          </Form>
           <Link
             to="/admin/customers/import"
             className="inline-flex h-10 items-center rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-accent"
