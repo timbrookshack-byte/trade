@@ -146,8 +146,10 @@ dispatch/complete flows through the same mirror. Auth for all endpoints: same
 - `POST /api/trade/customers` (360 side TO BUILD — portal client ✅
   `push360Customers` in three60-orders.server.ts, tested against a mock):
   the portal MASTERS trade customers and pushes cards to 360 — body
-  `{ customers: [ { portal_customer_id, business_name, contact_name, email,
-  phone, abn, address, business_type, active, created_at } ] }` (≤100/call,
+  `{ customers: [ { portal_customer_id, trade_customer: true, business_name,
+  contact_name, email, phone, abn, address, business_type, active,
+  created_at } ] }` (≤100/call — 360 ticks its trade-customer flag on create
+  AND update, so email-matched existing customers get ticked too;
   same Bearer token), 360 upserts by email with ABN as tie-breaker →
   `{ ok, results: [{ email, customer_id, outcome }] }`. Portal sweep:
   APPROVED customers whose updated_at has passed customers.synced_360_at

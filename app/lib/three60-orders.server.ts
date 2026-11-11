@@ -496,9 +496,11 @@ export async function import360Orders(
  * email, ABN as the tie-breaker).
  *
  * Contract (360 side): POST /api/trade/customers, same Bearer token —
- *   { "customers": [ { "portal_customer_id", "business_name",
- *       "contact_name", "email", "phone", "abn", "address",
- *       "business_type", "active", "created_at" } ] }
+ *   { "customers": [ { "portal_customer_id", "trade_customer": true,
+ *       "business_name", "contact_name", "email", "phone", "abn",
+ *       "address", "business_type", "active", "created_at" } ] }
+ * 360 ticks its trade-customer flag on CREATE and on UPDATE (an existing
+ * 360 customer matched by email gets ticked too).
  * → 200 { "ok": true, "results": [ { "email", "customer_id",
  *       "outcome": "created|updated|skipped" } ] }. Idempotent; at most 100
  * customers per call.
@@ -556,6 +558,8 @@ export async function push360Customers(
         body: JSON.stringify({
           customers: customers.map((c) => ({
             portal_customer_id: c.id,
+            trade_customer: true, // 360 must tick its trade-customer flag
+
             business_name: c.business_name,
             contact_name: c.contact_name,
             email: c.email,
