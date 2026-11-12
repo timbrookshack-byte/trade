@@ -1,5 +1,0 @@
-# Copy to .dev.vars for local dev. In production set these with `npx wrangler secret put <NAME>`.
-MANAGER_CODE=2468
-SESSION_SECRET=change-me-to-a-long-random-string
-# Optional locally — without it the weekly email is skipped (logged only).
-RESEND_API_KEY=
