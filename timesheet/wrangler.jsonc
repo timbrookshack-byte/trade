@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shack-timesheet",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "timesheet",
+      // Replace with the id printed by `npx wrangler d1 create timesheet`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SUMMARY_TO": "sgreen@thefurnitureshack.com.au",
+    "EMAIL_FROM": "The Furniture Shack Timesheets <timesheets@thefurnitureshack.com.au>",
+    "MANAGER_NAME": "Alex"
+  },
+  // Monday 5:00am Australia/Brisbane (UTC+10, no daylight saving) = Sunday 19:00 UTC.
+  "triggers": { "crons": ["0 19 * * SUN"] }
+}
