@@ -542,7 +542,8 @@ export async function push360Customers(
         }[]
       >`
         SELECT id, business_name, contact_name, email, phone, abn, address,
-               business_type, active, created_at::text AS created_at
+               business_type, active,
+               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
         FROM customers
         WHERE approved AND (synced_360_at IS NULL OR updated_at > synced_360_at)
         ORDER BY updated_at ASC
@@ -574,7 +575,11 @@ export async function push360Customers(
         signal: AbortSignal.timeout(20000),
       });
       if (!response.ok) {
-        return { ...result, skipped: `360 replied ${response.status}` };
+        const detail = (await response.text().catch(() => "")).slice(0, 300);
+        return {
+          ...result,
+          skipped: `360 replied ${response.status}${detail ? `: ${detail}` : ""}`,
+        };
       }
       await db`
         UPDATE customers SET synced_360_at = now() WHERE id IN ${db(customers.map((c) => c.id))}
